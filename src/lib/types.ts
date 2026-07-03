@@ -126,6 +126,8 @@ export type Weather = {
   location: string;
 };
 
+import type { BoardLayout } from "./boardLayout";
+
 // The full payload the kitchen board polls for.
 export type BoardState = {
   family: {
@@ -133,6 +135,7 @@ export type BoardState = {
     name: string;
     screensaver_minutes: number;
     has_pin: boolean;
+    board_layout: BoardLayout | null;
   };
   members: (Member & { balance: number })[];
   chores: ChoreInstance[];

@@ -1,33 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { endOfDay, startOfDay } from "date-fns";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Blobs } from "@/components/board/bits";
-import { CalendarView } from "@/components/board/CalendarView";
-import { HomeView } from "@/components/board/HomeView";
-import { KidView } from "@/components/board/KidView";
+import { Dashboard } from "@/components/board/Dashboard";
 import { Pairing } from "@/components/board/Pairing";
 import { ParentMode } from "@/components/board/ParentMode";
+import { RewardsView } from "@/components/board/RewardsView";
 import { Screensaver } from "@/components/board/Screensaver";
 import {
   clearBoardToken,
   getBoardToken,
   useBoardState,
-  useEvents,
   useIdle,
 } from "@/components/board/useBoard";
 
 type View =
-  | { name: "home" }
-  | { name: "calendar" }
-  | { name: "kid"; memberId: string }
+  | { name: "dashboard" }
+  | { name: "rewards"; memberId: string | null }
   | { name: "parent" };
 
 export default function BoardPage() {
   const [paired, setPaired] = useState<boolean | null>(null);
-  const [view, setView] = useState<View>({ name: "home" });
+  const [view, setView] = useState<View>({ name: "dashboard" });
   const [asleep, setAsleep] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editPin, setEditPin] = useState("");
 
   useEffect(() => {
     setPaired(!!getBoardToken());
@@ -43,23 +41,16 @@ export default function BoardPage() {
     }
   }, [unauthorized]);
 
-  // Today's events power the home screen "Today" card.
-  const todayRange = useMemo(() => {
-    const now = new Date();
-    return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
-  }, []);
-  const { events: todayEvents } = useEvents(todayRange.from, todayRange.to, paired === true);
-
   const idleMs = Math.max(1, state?.family.screensaver_minutes ?? 10) * 60 * 1000;
   const goToSleep = useCallback(() => setAsleep(true), []);
   useIdle(idleMs, goToSleep);
 
-  // At midnight, snap back home so the new day's chores materialize.
+  // At midnight, snap back to the dashboard so the new day's chores appear.
   useEffect(() => {
     const id = setInterval(() => {
       const now = new Date();
       if (now.getHours() === 0 && now.getMinutes() === 0) {
-        setView({ name: "home" });
+        setView({ name: "dashboard" });
         refresh();
       }
     }, 60_000);
@@ -84,41 +75,52 @@ export default function BoardPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={view.name + ("memberId" in view ? view.memberId : "")}
+            key={view.name}
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.02 }}
             transition={{ duration: 0.25 }}
             className="relative h-full"
           >
-            {view.name === "home" && (
-              <HomeView
+            {view.name === "dashboard" && (
+              <Dashboard
                 state={state}
-                todayEvents={todayEvents}
-                onOpenCalendar={() => setView({ name: "calendar" })}
-                onOpenKid={(memberId) => setView({ name: "kid", memberId })}
+                refresh={refresh}
+                editMode={editMode}
+                editPin={editPin}
+                onExitEdit={() => {
+                  setEditMode(false);
+                  setEditPin("");
+                }}
+                onOpenRewards={(memberId) => setView({ name: "rewards", memberId })}
               />
             )}
-            {view.name === "calendar" && (
-              <CalendarView state={state} onHome={() => setView({ name: "home" })} />
-            )}
-            {view.name === "kid" && (
-              <KidView
+            {view.name === "rewards" && (
+              <RewardsView
                 state={state}
-                memberId={view.memberId}
-                onHome={() => setView({ name: "home" })}
+                initialMemberId={view.memberId}
+                onHome={() => setView({ name: "dashboard" })}
                 refresh={refresh}
               />
             )}
             {view.name === "parent" && (
-              <ParentMode state={state} onHome={() => setView({ name: "home" })} refresh={refresh} />
+              <ParentMode
+                state={state}
+                onHome={() => setView({ name: "dashboard" })}
+                refresh={refresh}
+                onCustomize={(pin) => {
+                  setEditPin(pin);
+                  setEditMode(true);
+                  setView({ name: "dashboard" });
+                }}
+              />
             )}
           </motion.div>
         </AnimatePresence>
       )}
 
       {/* Discreet parent-mode gear with a pending badge */}
-      {state && view.name !== "parent" && (
+      {state && view.name !== "parent" && !editMode && (
         <button
           onClick={() => setView({ name: "parent" })}
           className="absolute bottom-4 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-white/50 text-2xl opacity-60 shadow backdrop-blur transition active:scale-90"
