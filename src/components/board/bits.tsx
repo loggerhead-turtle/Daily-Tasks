@@ -36,7 +36,7 @@ export function BigAvatar({
   );
 }
 
-export function Clock({ big = false }: { big?: boolean }) {
+export function Clock({ big = false, compact = false }: { big?: boolean; compact?: boolean }) {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
     setNow(new Date());
@@ -44,15 +44,16 @@ export function Clock({ big = false }: { big?: boolean }) {
     return () => clearInterval(id);
   }, []);
   if (!now) return null;
+  const time = compact ? "text-4xl" : big ? "text-8xl" : "text-5xl";
+  const ampm = compact ? "text-xl" : big ? "text-4xl" : "text-2xl";
+  const date = compact ? "text-sm" : big ? "text-2xl" : "text-lg";
   return (
     <div className={big ? "text-center" : ""}>
-      <div className={`font-display font-bold leading-none text-slate-800 ${big ? "text-8xl" : "text-5xl"}`}>
+      <div className={`font-display font-bold leading-none text-slate-800 ${time}`}>
         {format(now, "h:mm")}
-        <span className={`ml-1 font-bold text-slate-400 ${big ? "text-4xl" : "text-2xl"}`}>{format(now, "a")}</span>
+        <span className={`ml-1 font-bold text-slate-400 ${ampm}`}>{format(now, "a")}</span>
       </div>
-      <div className={`mt-1 font-bold text-slate-500 ${big ? "text-2xl" : "text-lg"}`}>
-        {format(now, "EEEE, MMMM d")}
-      </div>
+      <div className={`mt-1 font-bold text-slate-500 ${date}`}>{format(now, "EEEE, MMMM d")}</div>
     </div>
   );
 }

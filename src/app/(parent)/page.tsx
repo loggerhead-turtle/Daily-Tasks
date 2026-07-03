@@ -8,6 +8,105 @@ import { useFamily } from "@/components/parent/useFamily";
 import { MemberAvatar } from "@/components/parent/MemberChip";
 import type { ChoreInstance, Redemption } from "@/lib/types";
 
+// Shown when a signed-in parent has no family yet (e.g. signup happened
+// before their email was confirmed, so the original setup call never ran).
+function FirstRunSetup() {
+  const [choice, setChoice] = useState<"create" | "join">("create");
+  const [displayName, setDisplayName] = useState("");
+  const [familyName, setFamilyName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    const res = await fetch("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        choice === "create" ? { familyName, displayName } : { inviteCode, displayName }
+      ),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json()).error ?? "Setup failed");
+      return;
+    }
+    window.location.reload();
+  }
+
+  return (
+    <div className="mx-auto max-w-md">
+      <div className="mb-4 text-center">
+        <div className="text-4xl">👋</div>
+        <h1 className="mt-1 font-display text-2xl font-bold text-slate-800">Almost there!</h1>
+        <p className="text-sm text-slate-500">Set up your family to finish creating your account.</p>
+      </div>
+      <form onSubmit={submit} className="card space-y-4">
+        <div>
+          <label className="label">Your name</label>
+          <input
+            className="input"
+            required
+            placeholder="e.g. Erik"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => setChoice("create")}
+            className={`rounded-lg py-2 text-sm font-bold transition ${
+              choice === "create" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500"
+            }`}
+          >
+            New family
+          </button>
+          <button
+            type="button"
+            onClick={() => setChoice("join")}
+            className={`rounded-lg py-2 text-sm font-bold transition ${
+              choice === "join" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500"
+            }`}
+          >
+            Join with code
+          </button>
+        </div>
+        {choice === "create" ? (
+          <div>
+            <label className="label">Family name</label>
+            <input
+              className="input"
+              required
+              placeholder="The Paul Family"
+              value={familyName}
+              onChange={(e) => setFamilyName(e.target.value)}
+            />
+          </div>
+        ) : (
+          <div>
+            <label className="label">Invite code</label>
+            <input
+              className="input uppercase"
+              required
+              placeholder="From the other parent's Family page"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+            />
+          </div>
+        )}
+        {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
+        <button className="btn w-full py-3" disabled={busy}>
+          {busy ? "One moment…" : "Finish setup"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { family, members, loading } = useFamily();
   const [pendingChores, setPendingChores] = useState<ChoreInstance[]>([]);
@@ -60,14 +159,7 @@ export default function Dashboard() {
   const pendingTotal = pendingChores.length + pendingRedemptions.length;
 
   if (loading) return <p className="text-slate-400">Loading…</p>;
-  if (!family) {
-    return (
-      <div className="card">
-        <p className="font-bold">No family set up yet.</p>
-        <p className="text-sm text-slate-500">Sign out and create an account with a family, or join with an invite code.</p>
-      </div>
-    );
-  }
+  if (!family) return <FirstRunSetup />;
 
   return (
     <div className="space-y-6">

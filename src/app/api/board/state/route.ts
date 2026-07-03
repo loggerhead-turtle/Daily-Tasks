@@ -116,6 +116,7 @@ export async function GET(req: NextRequest) {
       name: family.name,
       screensaver_minutes: family.screensaver_minutes,
       has_pin: !!family.parent_pin_hash,
+      board_layout: family.board_layout ?? null,
     },
     members: (members ?? []).map((m) => ({ ...m, balance: balances.get(m.id) ?? 0 })),
     chores: instances ?? [],
