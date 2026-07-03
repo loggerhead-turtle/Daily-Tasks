@@ -1,0 +1,169 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CalendarEvent, CalendarLink, GoogleConnection, Member } from "./types";
+
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+export const GOOGLE_SCOPES =
+  "openid email https://www.googleapis.com/auth/calendar.readonly";
+
+export function googleAuthUrl(state: string) {
+  const params = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID!,
+    redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`,
+    response_type: "code",
+    scope: GOOGLE_SCOPES,
+    access_type: "offline",
+    prompt: "consent", // always get a refresh token
+    state,
+  });
+  return `${AUTH_URL}?${params}`;
+}
+
+export async function exchangeCode(code: string) {
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/google/callback`,
+      grant_type: "authorization_code",
+    }),
+  });
+  if (!res.ok) throw new Error(`Google token exchange failed: ${await res.text()}`);
+  return (await res.json()) as {
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+    id_token?: string;
+  };
+}
+
+export async function fetchGoogleEmail(accessToken: string) {
+  const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch Google user info");
+  const info = (await res.json()) as { email: string };
+  return info.email;
+}
+
+export async function fetchCalendarList(accessToken: string) {
+  const res = await fetch(
+    "https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader",
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) throw new Error("Failed to list Google calendars");
+  const data = (await res.json()) as {
+    items?: { id: string; summary: string; backgroundColor?: string; primary?: boolean }[];
+  };
+  return data.items ?? [];
+}
+
+// Returns a valid access token for a stored connection, refreshing (and
+// persisting) it when expired.
+export async function getAccessToken(
+  admin: SupabaseClient,
+  conn: GoogleConnection
+): Promise<string> {
+  if (
+    conn.access_token &&
+    conn.access_token_expires &&
+    new Date(conn.access_token_expires).getTime() > Date.now() + 60_000
+  ) {
+    return conn.access_token;
+  }
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      refresh_token: conn.refresh_token,
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!res.ok) throw new Error(`Google token refresh failed: ${await res.text()}`);
+  const data = (await res.json()) as { access_token: string; expires_in: number };
+  await admin
+    .from("google_connections")
+    .update({
+      access_token: data.access_token,
+      access_token_expires: new Date(Date.now() + data.expires_in * 1000).toISOString(),
+    })
+    .eq("id", conn.id);
+  return data.access_token;
+}
+
+type GoogleEvent = {
+  id: string;
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  status?: string;
+};
+
+// Fetch and merge events for every enabled linked calendar in a family.
+export async function fetchFamilyEvents(
+  admin: SupabaseClient,
+  familyId: string,
+  timeMin: string,
+  timeMax: string
+): Promise<CalendarEvent[]> {
+  const [{ data: links }, { data: conns }, { data: members }] = await Promise.all([
+    admin.from("calendar_links").select("*").eq("family_id", familyId).eq("enabled", true),
+    admin.from("google_connections").select("*").eq("family_id", familyId),
+    admin.from("members").select("*").eq("family_id", familyId),
+  ]);
+  if (!links?.length || !conns?.length) return [];
+
+  const connById = new Map((conns as GoogleConnection[]).map((c) => [c.id, c]));
+  const memberById = new Map((members as Member[] | null)?.map((m) => [m.id, m]) ?? []);
+  const tokenCache = new Map<string, Promise<string>>();
+
+  const results = await Promise.all(
+    (links as CalendarLink[]).map(async (link) => {
+      const conn = connById.get(link.connection_id);
+      if (!conn) return [];
+      if (!tokenCache.has(conn.id)) tokenCache.set(conn.id, getAccessToken(admin, conn));
+      try {
+        const token = await tokenCache.get(conn.id)!;
+        const params = new URLSearchParams({
+          timeMin,
+          timeMax,
+          singleEvents: "true",
+          orderBy: "startTime",
+          maxResults: "100",
+        });
+        const res = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+            link.google_calendar_id
+          )}/events?${params}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) return [];
+        const data = (await res.json()) as { items?: GoogleEvent[] };
+        const color =
+          link.color ?? (link.member_id ? memberById.get(link.member_id)?.color : null) ?? "#64748b";
+        return (data.items ?? [])
+          .filter((e) => e.status !== "cancelled" && (e.start?.dateTime || e.start?.date))
+          .map<CalendarEvent>((e) => ({
+            id: `${link.id}:${e.id}`,
+            title: e.summary || "(busy)",
+            start: e.start!.dateTime ?? e.start!.date!,
+            end: e.end?.dateTime ?? e.end?.date ?? e.start!.dateTime ?? e.start!.date!,
+            allDay: !e.start!.dateTime,
+            color,
+            memberId: link.member_id,
+            calendarLabel: link.label,
+          }));
+      } catch {
+        return [];
+      }
+    })
+  );
+  return results
+    .flat()
+    .sort((a, b) => a.start.localeCompare(b.start));
+}

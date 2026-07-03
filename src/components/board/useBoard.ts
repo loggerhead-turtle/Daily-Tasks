@@ -1,0 +1,114 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { format } from "date-fns";
+import type { BoardState, CalendarEvent } from "@/lib/types";
+
+const TOKEN_KEY = "family_board_token";
+
+export function getBoardToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setBoardToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearBoardToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+export async function boardFetch(path: string, init?: RequestInit & { pin?: string }) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-board-token": getBoardToken() ?? "",
+    ...((init?.headers as Record<string, string>) ?? {}),
+  };
+  if (init?.pin) headers["x-parent-pin"] = init.pin;
+  return fetch(path, { ...init, headers });
+}
+
+// Polls board state (chores, points, meals, announcements, weather…).
+// Realtime enough for a kitchen: refreshes every 45s and after any action.
+export function useBoardState(paired: boolean) {
+  const [state, setState] = useState<BoardState | null>(null);
+  const [unauthorized, setUnauthorized] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!getBoardToken()) return;
+    try {
+      const date = format(new Date(), "yyyy-MM-dd");
+      const res = await boardFetch(`/api/board/state?date=${date}`);
+      if (res.status === 401) {
+        setUnauthorized(true);
+        return;
+      }
+      if (res.ok) setState(await res.json());
+    } catch {
+      // Offline — keep showing the last known state.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!paired) return;
+    refresh();
+    const id = setInterval(refresh, 45_000);
+    return () => clearInterval(id);
+  }, [paired, refresh]);
+
+  return { state, refresh, unauthorized };
+}
+
+// Fetches calendar events for a date range, cached per range for 5 minutes.
+export function useEvents(fromISO: string, toISO: string, enabled: boolean) {
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const cache = useRef(new Map<string, { at: number; events: CalendarEvent[] }>());
+
+  useEffect(() => {
+    if (!enabled) return;
+    const key = `${fromISO}:${toISO}`;
+    const hit = cache.current.get(key);
+    if (hit && Date.now() - hit.at < 5 * 60 * 1000) {
+      setEvents(hit.events);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    boardFetch(`/api/board/events?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          cache.current.set(key, { at: Date.now(), events: data.events });
+          setEvents(data.events);
+        }
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [fromISO, toISO, enabled]);
+
+  return { events, loading };
+}
+
+// Milliseconds since the last touch anywhere on the board.
+export function useIdle(onIdleMs: number, onIdle: () => void) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const reset = () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(onIdle, onIdleMs);
+    };
+    reset();
+    const evts = ["pointerdown", "pointermove", "keydown"] as const;
+    evts.forEach((e) => window.addEventListener(e, reset));
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      evts.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, [onIdleMs, onIdle]);
+}
