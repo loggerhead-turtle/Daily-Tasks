@@ -6,7 +6,7 @@ import { Blobs } from "@/components/board/bits";
 import { Dashboard } from "@/components/board/Dashboard";
 import { Pairing } from "@/components/board/Pairing";
 import { ParentMode } from "@/components/board/ParentMode";
-import { RewardsView } from "@/components/board/RewardsView";
+import { BountyView } from "@/components/board/BountyView";
 import { Screensaver } from "@/components/board/Screensaver";
 import {
   clearBoardToken,
@@ -20,7 +20,7 @@ import { DEFAULT_SCALE, clampScale } from "@/lib/boardLayout";
 
 type View =
   | { name: "dashboard" }
-  | { name: "rewards"; memberId: string | null }
+  | { name: "bounty" }
   | { name: "parent" };
 
 export default function BoardPage() {
@@ -126,13 +126,12 @@ export default function BoardPage() {
                   setEditMode(false);
                   setEditPin("");
                 }}
-                onOpenRewards={(memberId) => setView({ name: "rewards", memberId })}
+                onOpenBounty={() => setView({ name: "bounty" })}
               />
             )}
-            {view.name === "rewards" && (
-              <RewardsView
+            {view.name === "bounty" && (
+              <BountyView
                 state={state}
-                initialMemberId={view.memberId}
                 onHome={() => setView({ name: "dashboard" })}
                 refresh={refresh}
               />

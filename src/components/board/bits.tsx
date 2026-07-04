@@ -37,6 +37,20 @@ export function BigAvatar({
   );
 }
 
+// A chore/bounty's reward: dollars, points, or both — whichever are set.
+export function RewardTag({ points, cents }: { points: number; cents: number }) {
+  const hasCents = cents > 0;
+  const hasPoints = points > 0;
+  if (!hasCents && !hasPoints) return null;
+  return (
+    <span className="font-bold">
+      {hasCents && <span className="text-emerald-600">${(cents / 100).toFixed(2)}</span>}
+      {hasCents && hasPoints && <span className="text-slate-400"> · </span>}
+      {hasPoints && <span className="text-amber-600">⭐ {points}</span>}
+    </span>
+  );
+}
+
 export function Clock({ big = false, compact = false }: { big?: boolean; compact?: boolean }) {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
