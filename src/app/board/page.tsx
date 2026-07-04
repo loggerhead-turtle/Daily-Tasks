@@ -31,6 +31,20 @@ export default function BoardPage() {
     setPaired(!!getBoardToken());
   }, []);
 
+  // The board is a wall display read from across the kitchen, so scale the
+  // whole UI up from the browser's default 16px root. Every board style is
+  // rem/em-based, so this zooms text, icons and spacing together while the
+  // flex/grid layout re-fits itself (a CSS transform would overflow instead).
+  // Reset on unmount so it never leaks into the parent web app.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.style.fontSize;
+    root.style.fontSize = "200%"; // 2× — bump to 250%/300% for an even bigger board
+    return () => {
+      root.style.fontSize = prev;
+    };
+  }, []);
+
   const { state, refresh, unauthorized } = useBoardState(paired === true);
 
   useEffect(() => {
