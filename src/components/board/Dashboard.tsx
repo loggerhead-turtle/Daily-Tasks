@@ -7,6 +7,9 @@ import {
   type BoardLayout,
   type CardId,
   CARD_META,
+  MAX_SCALE,
+  MIN_SCALE,
+  SCALE_STEP,
   nextSize,
   sanitizeLayout,
 } from "@/lib/boardLayout";
@@ -31,6 +34,8 @@ export function Dashboard({
   refresh,
   editMode,
   editPin,
+  scale,
+  setScale,
   onExitEdit,
   onOpenRewards,
 }: {
@@ -38,6 +43,8 @@ export function Dashboard({
   refresh: () => void;
   editMode: boolean;
   editPin: string;
+  scale: number;
+  setScale: (n: number) => void;
   onExitEdit: () => void;
   onOpenRewards: (memberId: string | null) => void;
 }) {
@@ -91,12 +98,24 @@ export function Dashboard({
 
   async function save() {
     setSaving(true);
-    await boardFetch("/api/board/layout", {
+    const res = await boardFetch("/api/board/layout", {
       method: "POST",
       pin: editPin,
       body: JSON.stringify({ layout }),
     });
     setSaving(false);
+    if (!res.ok) {
+      // Don't silently swallow a failed save (e.g. the board_layout column
+      // hasn't been added to the database yet) — the layout would just snap
+      // back on the next refresh and look like nothing happened.
+      const msg = await res.json().catch(() => ({}));
+      alert(
+        `Couldn't save the layout (${res.status}). ${
+          msg.error ?? "Check that database migration 0002 has been run in Supabase."
+        }`
+      );
+      return;
+    }
     await refresh();
     onExitEdit();
   }
@@ -218,6 +237,33 @@ export function Dashboard({
           );
         })}
       </div>
+
+      {/* Always-on text-size control — no PIN, so anyone can size the board to
+          the room. Persists per-device via changeScale (localStorage). */}
+      {!editMode && (
+        <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 opacity-80 shadow-lg backdrop-blur transition hover:opacity-100">
+          <span className="px-1 font-display text-base font-bold text-slate-500">Size</span>
+          <button
+            onClick={() => setScale(scale - SCALE_STEP)}
+            disabled={scale <= MIN_SCALE}
+            aria-label="Smaller text and icons"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white font-display text-xl font-bold text-slate-700 shadow transition active:scale-90 disabled:opacity-40"
+          >
+            A−
+          </button>
+          <span className="min-w-[3rem] text-center font-display text-base font-bold text-slate-700">
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            onClick={() => setScale(scale + SCALE_STEP)}
+            disabled={scale >= MAX_SCALE}
+            aria-label="Bigger text and icons"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white font-display text-2xl font-bold text-slate-700 shadow transition active:scale-90 disabled:opacity-40"
+          >
+            A+
+          </button>
+        </div>
+      )}
 
       {/* Edit-mode toolbar */}
       {editMode && (

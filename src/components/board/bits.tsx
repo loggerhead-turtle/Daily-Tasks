@@ -19,10 +19,11 @@ export function BigAvatar({
         selected ? "scale-105 border-white ring-4" : "border-white/70"
       }`}
       style={{
-        width: size,
-        height: size,
+        // rem (not px) so avatars scale with the board's root font size.
+        width: `${size / 16}rem`,
+        height: `${size / 16}rem`,
         backgroundColor: member.color,
-        fontSize: size * 0.5,
+        fontSize: `${(size * 0.5) / 16}rem`,
         ...(selected ? ({ "--tw-ring-color": member.color } as React.CSSProperties) : {}),
       }}
     >

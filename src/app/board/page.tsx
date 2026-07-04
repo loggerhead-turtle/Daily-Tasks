@@ -10,10 +10,13 @@ import { RewardsView } from "@/components/board/RewardsView";
 import { Screensaver } from "@/components/board/Screensaver";
 import {
   clearBoardToken,
+  getBoardScale,
   getBoardToken,
+  setBoardScale,
   useBoardState,
   useIdle,
 } from "@/components/board/useBoard";
+import { DEFAULT_SCALE, clampScale } from "@/lib/boardLayout";
 
 type View =
   | { name: "dashboard" }
@@ -32,6 +35,35 @@ export default function BoardPage() {
   }, []);
 
   const { state, refresh, unauthorized } = useBoardState(paired === true);
+
+  // The board is a wall display read from across the kitchen, so scale the
+  // whole UI up from the browser's default 16px root. Every board style is
+  // rem/em-based, so this zooms text, icons and spacing together while the
+  // flex/grid layout re-fits itself (a CSS transform would overflow instead).
+  // The size is a per-device preference set from the on-screen A−/A+ control
+  // (no PIN) and remembered in this board's localStorage across reboots.
+  const [scale, setScale] = useState(DEFAULT_SCALE);
+  useEffect(() => {
+    const saved = getBoardScale();
+    if (saved) setScale(clampScale(saved));
+  }, []);
+
+  const changeScale = useCallback((n: number) => {
+    const clamped = clampScale(n);
+    setScale(clamped);
+    setBoardScale(clamped);
+  }, []);
+
+  // Apply the current scale to the document root, and reset on unmount so it
+  // never leaks into the parent web app.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.style.fontSize;
+    root.style.fontSize = `${scale * 100}%`;
+    return () => {
+      root.style.fontSize = prev;
+    };
+  }, [scale]);
 
   useEffect(() => {
     if (unauthorized) {
@@ -88,6 +120,8 @@ export default function BoardPage() {
                 refresh={refresh}
                 editMode={editMode}
                 editPin={editPin}
+                scale={scale}
+                setScale={changeScale}
                 onExitEdit={() => {
                   setEditMode(false);
                   setEditPin("");
@@ -119,20 +153,32 @@ export default function BoardPage() {
         </AnimatePresence>
       )}
 
-      {/* Discreet parent-mode gear with a pending badge */}
-      {state && view.name !== "parent" && !editMode && (
-        <button
-          onClick={() => setView({ name: "parent" })}
-          className="absolute bottom-4 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-white/50 text-2xl opacity-60 shadow backdrop-blur transition active:scale-90"
-          aria-label="Parent mode"
-        >
-          ⚙️
-          {state.pendingCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 font-display text-sm font-bold text-white">
-              {state.pendingCount}
-            </span>
+      {/* Refresh + discreet parent-mode gear with a pending badge */}
+      {state && !editMode && (
+        <div className="absolute bottom-4 right-4 z-30 flex items-center gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-white/50 text-2xl opacity-60 shadow backdrop-blur transition active:scale-90"
+            aria-label="Refresh board"
+            title="Refresh"
+          >
+            🔄
+          </button>
+          {view.name !== "parent" && (
+            <button
+              onClick={() => setView({ name: "parent" })}
+              className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white/50 text-2xl opacity-60 shadow backdrop-blur transition active:scale-90"
+              aria-label="Parent mode"
+            >
+              ⚙️
+              {state.pendingCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 font-display text-sm font-bold text-white">
+                  {state.pendingCount}
+                </span>
+              )}
+            </button>
           )}
-        </button>
+        </div>
       )}
 
       {asleep && <Screensaver photos={state?.photos ?? []} />}

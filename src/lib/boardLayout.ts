@@ -11,6 +11,20 @@ export type BoardLayout = {
   hidden: CardId[];
 };
 
+// How big the whole board renders (root font multiplier, e.g. 2 = 200%). It's
+// a wall display read from across the room, so it starts at 2×. This is a
+// per-device setting stored in the board's own localStorage — no PIN, no sync —
+// adjusted straight from the board with the on-screen A−/A+ control.
+export const MIN_SCALE = 1.25;
+export const MAX_SCALE = 3;
+export const SCALE_STEP = 0.25;
+export const DEFAULT_SCALE = 2;
+
+export function clampScale(n: unknown): number {
+  const v = typeof n === "number" && Number.isFinite(n) ? n : DEFAULT_SCALE;
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(v / SCALE_STEP) * SCALE_STEP));
+}
+
 export const ALL_CARDS: CardId[] = ["chores", "calendar", "meals", "announcements"];
 
 export const CARD_META: Record<CardId, { title: string; emoji: string }> = {
@@ -50,6 +64,7 @@ export function sanitizeLayout(input: unknown): BoardLayout {
   for (const id of ALL_CARDS) {
     if (!order.includes(id) && !hidden.includes(id)) order.push(id);
   }
+
   // Nothing visible is a broken board — fall back to the default order.
   if (order.length === 0) return { ...DEFAULT_LAYOUT, hidden: [] };
 

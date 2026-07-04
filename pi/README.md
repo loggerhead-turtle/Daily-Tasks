@@ -51,3 +51,30 @@ Turns a Raspberry Pi 5 + touchscreen into the kitchen board.
 - **Nightly refresh (optional)**: some people like a 4 a.m. browser restart for a
   guaranteed fresh slate: `crontab -e` → `0 4 * * * pkill -f family-board-kiosk`.
   The autostart loop restarts it immediately.
+
+## Troubleshooting
+
+- **Emoji show as empty boxes** (member icons, chore/meal glyphs render as a hollow
+  rectangle): the Pi is missing a color-emoji font. Newer setups install it
+  automatically; on an older kiosk run:
+
+  ```bash
+  sudo apt update && sudo apt install -y fonts-noto-color-emoji
+  fc-cache -f
+  pkill -f family-board-kiosk   # the autostart loop relaunches Chromium
+  ```
+
+- **Boot stops on an "unlock keyring" password box** (and never reaches the board):
+  on autologin there's no password to unlock the GNOME keyring, so Chromium's
+  request for it blocks. The fix is the `--password-store=basic` flag, which newer
+  setups add automatically. Update an existing kiosk by pulling the latest repo and
+  re-running the setup script (safe to re-run):
+
+  ```bash
+  cd ~/daily-tasks && git pull
+  sudo bash pi/setup-kiosk.sh https://your-board-url https://your-project.supabase.co
+  sudo reboot
+  ```
+
+  This also switches the boot to a plain **black screen** (no desktop, panel, or
+  cursor) until the board is ready, so nobody sees the desktop.

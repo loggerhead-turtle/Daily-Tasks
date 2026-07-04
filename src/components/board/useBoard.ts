@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import type { BoardState, CalendarEvent } from "@/lib/types";
 
 const TOKEN_KEY = "family_board_token";
+const SCALE_KEY = "family_board_scale";
 
 export function getBoardToken() {
   if (typeof window === "undefined") return null;
@@ -17,6 +18,19 @@ export function setBoardToken(token: string) {
 
 export function clearBoardToken() {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+// Board zoom is a per-device preference (each screen can be sized for its own
+// room and viewing distance), so it lives in this board's localStorage rather
+// than the shared, PIN-gated family layout.
+export function getBoardScale(): number | null {
+  if (typeof window === "undefined") return null;
+  const v = localStorage.getItem(SCALE_KEY);
+  return v ? Number(v) : null;
+}
+
+export function setBoardScale(scale: number) {
+  localStorage.setItem(SCALE_KEY, String(scale));
 }
 
 export async function boardFetch(path: string, init?: RequestInit & { pin?: string }) {
