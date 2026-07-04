@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { resolveLoginEmail } from "@/lib/childLogin";
 
 type Mode = "signin" | "signup";
 
@@ -25,7 +26,14 @@ export default function LoginPage() {
     setBusy(true);
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        // Kids sign in with a username; parents with their email. Both resolve
+        // to the account's auth email the same way the account was created.
+        const resolved = resolveLoginEmail(email);
+        if (!resolved) throw new Error("Enter your username or email.");
+        const { error } = await supabase.auth.signInWithPassword({
+          email: resolved,
+          password,
+        });
         if (error) throw new Error(error.message);
       } else {
         const { error } = await supabase.auth.signUp({ email, password });
@@ -76,10 +84,12 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="label">Email</label>
+            <label className="label">{mode === "signin" ? "Email or username" : "Email"}</label>
             <input
               className="input"
-              type="email"
+              type={mode === "signin" ? "text" : "email"}
+              autoCapitalize="none"
+              autoCorrect="off"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
