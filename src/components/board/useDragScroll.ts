@@ -18,23 +18,34 @@ export function useDragScroll() {
       if (e.pointerType === "touch") return;
       const el = ref.current;
       if (!el) return;
+      // Note: do NOT capture the pointer here — capturing on pointer-down
+      // retargets the pointer-up to this container, which stops clicks on
+      // buttons inside from firing (e.g. "Claim"). We only capture once an
+      // actual drag begins (past the threshold, in onPointerMove).
       drag.current = { active: true, startY: e.clientY, startTop: el.scrollTop, moved: false };
-      try {
-        el.setPointerCapture(e.pointerId);
-      } catch {
-        // setPointerCapture can throw on some inputs; drag still works.
-      }
     },
     onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
       if (!drag.current.active) return;
       const el = ref.current;
       if (!el) return;
       const dy = e.clientY - drag.current.startY;
-      if (Math.abs(dy) > 5) drag.current.moved = true;
-      el.scrollTop = drag.current.startTop - dy;
+      if (!drag.current.moved && Math.abs(dy) > 5) {
+        drag.current.moved = true;
+        try {
+          el.setPointerCapture(e.pointerId); // now it's a real drag — capture it
+        } catch {
+          // ignore; scrolling still works while the pointer stays over the list
+        }
+      }
+      if (drag.current.moved) el.scrollTop = drag.current.startTop - dy;
     },
-    onPointerUp: () => {
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
       drag.current.active = false;
+      try {
+        ref.current?.releasePointerCapture(e.pointerId);
+      } catch {
+        // no capture was taken
+      }
     },
     onPointerCancel: () => {
       drag.current.active = false;
