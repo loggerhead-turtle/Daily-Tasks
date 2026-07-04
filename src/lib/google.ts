@@ -3,8 +3,13 @@ import type { CalendarEvent, CalendarLink, GoogleConnection, Member } from "./ty
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const PICKER_BASE = "https://photospicker.googleapis.com/v1";
 export const GOOGLE_SCOPES =
-  "openid email https://www.googleapis.com/auth/calendar.readonly";
+  "openid email " +
+  "https://www.googleapis.com/auth/calendar.readonly " +
+  // Photos Picker: the user hand-picks images in a Google-hosted dialog; the
+  // app never gets to browse their library (broad album read was retired in 2025).
+  "https://www.googleapis.com/auth/photospicker.mediaitems.readonly";
 
 export function googleAuthUrl(state: string) {
   const params = new URLSearchParams({
@@ -13,6 +18,7 @@ export function googleAuthUrl(state: string) {
     response_type: "code",
     scope: GOOGLE_SCOPES,
     access_type: "offline",
+    include_granted_scopes: "true", // keep previously-granted scopes (e.g. calendar)
     prompt: "consent", // always get a refresh token
     state,
   });
@@ -188,4 +194,86 @@ export async function fetchFamilyEvents(
     events: results.flat().sort((a, b) => a.start.localeCompare(b.start)),
     issues: Array.from(new Set(issues)),
   };
+}
+
+// ── Google Photos Picker ───────────────────────────────────────────────────
+// Broad library/album read access was retired in 2025, so we use the Picker:
+// create a session, send the parent to pickerUri to choose photos, then read
+// back exactly the items they selected and copy the bytes into our own bucket.
+
+export type PickerSession = {
+  id: string;
+  pickerUri: string;
+  mediaItemsSet?: boolean;
+};
+
+type PickedMediaItem = {
+  id: string;
+  type?: string; // "PHOTO" | "VIDEO" | "TYPE_UNSPECIFIED"
+  mediaFile?: { baseUrl?: string; mimeType?: string; filename?: string };
+};
+
+export async function createPickerSession(accessToken: string): Promise<PickerSession> {
+  const res = await fetch(`${PICKER_BASE}/sessions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  if (!res.ok) throw new Error(`Couldn't start Google Photos picker: ${await res.text()}`);
+  return (await res.json()) as PickerSession;
+}
+
+export async function getPickerSession(
+  accessToken: string,
+  sessionId: string
+): Promise<PickerSession> {
+  const res = await fetch(`${PICKER_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Couldn't check picker session: ${await res.text()}`);
+  return (await res.json()) as PickerSession;
+}
+
+export async function deletePickerSession(accessToken: string, sessionId: string): Promise<void> {
+  await fetch(`${PICKER_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  }).catch(() => {});
+}
+
+// All photos the parent selected in this session (paginated).
+export async function listPickedPhotos(
+  accessToken: string,
+  sessionId: string
+): Promise<{ baseUrl: string; mimeType: string; filename: string }[]> {
+  const out: { baseUrl: string; mimeType: string; filename: string }[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({ sessionId, pageSize: "100" });
+    if (pageToken) params.set("pageToken", pageToken);
+    const res = await fetch(`${PICKER_BASE}/mediaItems?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) throw new Error(`Couldn't read picked photos: ${await res.text()}`);
+    const data = (await res.json()) as { mediaItems?: PickedMediaItem[]; nextPageToken?: string };
+    for (const item of data.mediaItems ?? []) {
+      if (item.type === "PHOTO" && item.mediaFile?.baseUrl) {
+        out.push({
+          baseUrl: item.mediaFile.baseUrl,
+          mimeType: item.mediaFile.mimeType ?? "image/jpeg",
+          filename: item.mediaFile.filename ?? "photo.jpg",
+        });
+      }
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+
+// Download the full-resolution bytes for a picked photo. Picker baseUrls
+// require the access token and the "=d" download parameter.
+export async function downloadPickedPhoto(accessToken: string, baseUrl: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${baseUrl}=d`, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error(`Couldn't download a photo (${res.status})`);
+  return res.arrayBuffer();
 }
