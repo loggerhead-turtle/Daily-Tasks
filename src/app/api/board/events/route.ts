@@ -20,10 +20,11 @@ export async function GET(req: NextRequest) {
   const key = `${ctx.familyId}:${from}:${to}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < 5 * 60 * 1000) {
-    return NextResponse.json({ events: cached.events });
+    return NextResponse.json({ events: cached.events, issues: [] });
   }
 
-  const events = await fetchFamilyEvents(ctx.admin, ctx.familyId, from, to);
-  cache.set(key, { at: Date.now(), events });
-  return NextResponse.json({ events });
+  const { events, issues } = await fetchFamilyEvents(ctx.admin, ctx.familyId, from, to);
+  // Only cache clean results, so a transient Google hiccup doesn't stick around.
+  if (issues.length === 0) cache.set(key, { at: Date.now(), events });
+  return NextResponse.json({ events, issues });
 }
