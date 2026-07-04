@@ -5,6 +5,7 @@ import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "framer-motion";
 import type { BoardState, ChoreInstance, Member } from "@/lib/types";
 import { boardFetch } from "../useBoard";
+import { useDragScroll } from "../useDragScroll";
 import { BigAvatar } from "../bits";
 
 function celebrate(color: string) {
@@ -85,6 +86,7 @@ export function ChoresCard({
   refresh: () => void;
 }) {
   const [toast, setToast] = useState<string | null>(null);
+  const drag = useDragScroll();
   const kids = state.members.filter((m) => m.role === "child");
   const grabs = state.chores.filter((c) => c.member_id === null && c.chore?.assign_type === "grab");
   const selectedKid = kids.find((k) => k.id === selected) ?? null;
@@ -117,7 +119,7 @@ export function ChoresCard({
         )}
       </AnimatePresence>
 
-      <div className="min-h-0 flex-1 space-y-2 board-scroll">
+      <div className="min-h-0 flex-1 space-y-2 board-scroll" {...drag}>
         {selectedKid ? (
           <>
             {state.chores

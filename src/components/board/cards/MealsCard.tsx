@@ -2,8 +2,10 @@
 
 import { format, isToday, parseISO } from "date-fns";
 import type { BoardState } from "@/lib/types";
+import { useDragScroll } from "../useDragScroll";
 
 export function MealsCard({ state }: { state: BoardState }) {
+  const drag = useDragScroll();
   const tonight = state.meals.find((m) => isToday(parseISO(m.date)));
   const upcoming = state.meals.filter((m) => !isToday(parseISO(m.date))).slice(0, 4);
 
@@ -22,7 +24,7 @@ export function MealsCard({ state }: { state: BoardState }) {
           Tonight&apos;s dinner: surprise! 🤷
         </p>
       )}
-      <div className="mt-2 min-h-0 flex-1 space-y-1 board-scroll">
+      <div className="mt-2 min-h-0 flex-1 space-y-1 board-scroll" {...drag}>
         {upcoming.map((m) => (
           <div key={m.id} className="flex items-center gap-2 rounded-xl bg-white/60 px-3 py-1.5">
             <span className="w-10 text-xs font-bold uppercase text-slate-400">

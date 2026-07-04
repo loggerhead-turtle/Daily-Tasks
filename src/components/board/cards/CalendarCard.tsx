@@ -19,6 +19,7 @@ import {
 import { motion } from "framer-motion";
 import type { BoardState, CalendarEvent } from "@/lib/types";
 import { useEvents } from "../useBoard";
+import { useDragScroll } from "../useDragScroll";
 
 type Mode = "day" | "week" | "month";
 
@@ -138,8 +139,9 @@ export function CalendarCard({
 }
 
 function DayView({ events }: { events: CalendarEvent[] }) {
+  const drag = useDragScroll();
   return (
-    <div className="min-h-0 flex-1 space-y-2 board-scroll">
+    <div className="min-h-0 flex-1 space-y-2 board-scroll" {...drag}>
       {events.length === 0 && (
         <p className="mt-8 text-center font-display text-2xl font-bold text-slate-400">
           Nothing scheduled — free day! 🎈
@@ -181,39 +183,55 @@ function WeekView({
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   return (
     <div className="grid min-h-0 flex-1 grid-cols-7 gap-1.5">
-      {days.map((day) => {
-        const dayEvents = events.filter((e) => isSameDay(eventDay(e), day));
-        const today = isToday(day);
-        return (
-          <button
-            key={day.toISOString()}
-            onClick={() => onPickDay(day)}
-            className={`flex min-h-0 flex-col rounded-2xl p-1.5 text-left shadow-sm transition active:scale-[0.97] ${
-              today ? "bg-violet-600/90" : "bg-white/70"
-            }`}
-          >
-            <div className={`mb-1 text-center ${today ? "text-white" : "text-slate-500"}`}>
-              <div className="text-[11px] font-bold uppercase">{format(day, "EEE")}</div>
-              <div className="font-display text-xl font-bold leading-none">{format(day, "d")}</div>
-            </div>
-            <div className="min-h-0 flex-1 space-y-1 board-scroll">
-              {dayEvents.map((e) => (
-                <div
-                  key={e.id}
-                  className="rounded-lg px-1.5 py-1 text-white shadow-sm"
-                  style={{ backgroundColor: e.color }}
-                >
-                  <p className="truncate text-[11px] font-bold leading-tight">{e.title}</p>
-                  {!e.allDay && (
-                    <p className="text-[10px] font-semibold opacity-90">{format(parseISO(e.start), "h:mm a")}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </button>
-        );
-      })}
+      {days.map((day) => (
+        <WeekDayCell
+          key={day.toISOString()}
+          day={day}
+          events={events.filter((e) => isSameDay(eventDay(e), day))}
+          onPick={() => onPickDay(day)}
+        />
+      ))}
     </div>
+  );
+}
+
+function WeekDayCell({
+  day,
+  events,
+  onPick,
+}: {
+  day: Date;
+  events: CalendarEvent[];
+  onPick: () => void;
+}) {
+  const drag = useDragScroll();
+  const today = isToday(day);
+  return (
+    <button
+      onClick={onPick}
+      className={`flex min-h-0 flex-col rounded-2xl p-1.5 text-left shadow-sm transition active:scale-[0.97] ${
+        today ? "bg-violet-600/90" : "bg-white/70"
+      }`}
+    >
+      <div className={`mb-1 text-center ${today ? "text-white" : "text-slate-500"}`}>
+        <div className="text-[11px] font-bold uppercase">{format(day, "EEE")}</div>
+        <div className="font-display text-xl font-bold leading-none">{format(day, "d")}</div>
+      </div>
+      <div className="min-h-0 flex-1 space-y-1 board-scroll" {...drag}>
+        {events.map((e) => (
+          <div
+            key={e.id}
+            className="rounded-lg px-1.5 py-1 text-white shadow-sm"
+            style={{ backgroundColor: e.color }}
+          >
+            <p className="truncate text-[11px] font-bold leading-tight">{e.title}</p>
+            {!e.allDay && (
+              <p className="text-[10px] font-semibold opacity-90">{format(parseISO(e.start), "h:mm a")}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </button>
   );
 }
 
