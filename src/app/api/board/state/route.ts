@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
     { data: announcements },
     { data: ledger },
     { data: photos },
+    { data: earnings },
   ] = await Promise.all([
     admin.from("families").select("*").eq("id", familyId).single(),
     admin.from("members").select("*").eq("family_id", familyId).order("sort_order"),
@@ -97,6 +98,9 @@ export async function GET(req: NextRequest) {
       .eq("family_id", familyId)
       .order("created_at", { ascending: false })
       .limit(50),
+    // May not exist until migration 0003 is run — errors resolve to null and
+    // simply show $0, so the board keeps working either way.
+    admin.from("earnings").select("member_id, cents").eq("family_id", familyId),
   ]);
 
   if (!family) return NextResponse.json({ error: "Family not found" }, { status: 404 });
@@ -104,6 +108,11 @@ export async function GET(req: NextRequest) {
   const balances = new Map<string, number>();
   for (const row of ledger ?? []) {
     balances.set(row.member_id, (balances.get(row.member_id) ?? 0) + row.delta);
+  }
+
+  const earningsByMember = new Map<string, number>();
+  for (const row of earnings ?? []) {
+    earningsByMember.set(row.member_id, (earningsByMember.get(row.member_id) ?? 0) + row.cents);
   }
 
   const pendingCount =
@@ -118,7 +127,11 @@ export async function GET(req: NextRequest) {
       has_pin: !!family.parent_pin_hash,
       board_layout: family.board_layout ?? null,
     },
-    members: (members ?? []).map((m) => ({ ...m, balance: balances.get(m.id) ?? 0 })),
+    members: (members ?? []).map((m) => ({
+      ...m,
+      balance: balances.get(m.id) ?? 0,
+      earningsCents: earningsByMember.get(m.id) ?? 0,
+    })),
     chores: instances ?? [],
     rewards: rewards ?? [],
     redemptions: redemptions ?? [],
