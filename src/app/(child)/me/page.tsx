@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { format, parseISO } from "date-fns";
 import { Camera, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { ChoreInstance, Earning } from "@/lib/types";
+import type { CalendarEvent, ChoreInstance, Earning } from "@/lib/types";
+
+type Note = { id: string; icon: string; text: string; when: string };
 
 type ChildState = {
   member: { id: string; name: string; color: string; emoji: string; avatar_url: string | null };
@@ -15,6 +18,7 @@ type ChildState = {
   earnedCents: number;
   paidCents: number;
   earnings: Earning[];
+  notifications: Note[];
 };
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -22,6 +26,7 @@ const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 export default function ChildPage() {
   const router = useRouter();
   const [state, setState] = useState<ChildState | null>(null);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -36,9 +41,20 @@ export default function ChildPage() {
     if (res.ok) setState(await res.json());
   }, [router]);
 
+  const loadEvents = useCallback(async () => {
+    const now = new Date();
+    const from = now.toISOString();
+    const to = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const res = await fetch(
+      `/api/child/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    );
+    if (res.ok) setEvents((await res.json()).events ?? []);
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadEvents();
+  }, [load, loadEvents]);
 
   async function complete(instanceId: string) {
     setBusy(instanceId);
@@ -129,25 +145,30 @@ export default function ChildPage() {
           </button>
         </header>
 
-        {/* Money */}
-        <div className="mb-6 grid grid-cols-3 gap-2">
-          <div className="rounded-2xl bg-emerald-500 p-3 text-white shadow-lg">
-            <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">To be paid</p>
-            <p className="font-display text-2xl font-bold">{money(state.balanceCents)}</p>
-          </div>
-          <div className="rounded-2xl bg-white/70 p-3 shadow">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Earned</p>
-            <p className="font-display text-2xl font-bold text-slate-700">{money(state.earnedCents)}</p>
-          </div>
-          <div className="rounded-2xl bg-white/70 p-3 shadow">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Paid out</p>
-            <p className="font-display text-2xl font-bold text-slate-700">{money(state.paidCents)}</p>
-          </div>
+        {/* 1 · Notifications */}
+        <h2 className="mb-2 font-display text-lg font-bold text-slate-700">🔔 Notifications</h2>
+        <div className="mb-6 space-y-1.5">
+          {state.notifications.length === 0 && (
+            <p className="rounded-2xl bg-white/60 px-4 py-3 text-center font-bold text-slate-400">
+              Nothing new right now 😌
+            </p>
+          )}
+          {state.notifications.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-start gap-2 rounded-2xl bg-white/75 px-4 py-2.5 shadow-sm"
+            >
+              <span className="text-xl">{n.icon}</span>
+              <span className="font-display text-sm font-bold leading-snug text-slate-700">
+                {n.text}
+              </span>
+            </div>
+          ))}
         </div>
 
-        {/* Today's chores */}
-        <h2 className="mb-2 font-display text-lg font-bold text-slate-700">Today&apos;s jobs</h2>
-        <div className="space-y-2">
+        {/* 2 · Today's chores */}
+        <h2 className="mb-2 font-display text-lg font-bold text-slate-700">✅ Today&apos;s jobs</h2>
+        <div className="mb-6 space-y-2">
           {todo.length === 0 && waiting.length === 0 && done.length === 0 && (
             <p className="rounded-2xl bg-white/60 px-4 py-6 text-center font-display font-bold text-slate-400">
               No jobs today — enjoy! 🎈
@@ -205,11 +226,25 @@ export default function ChildPage() {
           ))}
         </div>
 
-        {/* Earnings history */}
-        {state.earnings.length > 0 && (
-          <>
-            <h2 className="mb-2 mt-7 font-display text-lg font-bold text-slate-700">Money history</h2>
-            <div className="space-y-1.5">
+        {/* 3 · Money */}
+        <h2 className="mb-2 font-display text-lg font-bold text-slate-700">💵 My money</h2>
+        <div className="mb-6">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-emerald-500 p-3 text-white shadow-lg">
+              <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">To be paid</p>
+              <p className="font-display text-2xl font-bold">{money(state.balanceCents)}</p>
+            </div>
+            <div className="rounded-2xl bg-white/70 p-3 shadow">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Earned</p>
+              <p className="font-display text-2xl font-bold text-slate-700">{money(state.earnedCents)}</p>
+            </div>
+            <div className="rounded-2xl bg-white/70 p-3 shadow">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Paid out</p>
+              <p className="font-display text-2xl font-bold text-slate-700">{money(state.paidCents)}</p>
+            </div>
+          </div>
+          {state.earnings.length > 0 && (
+            <div className="mt-2 space-y-1.5">
               {state.earnings.map((e) => (
                 <div
                   key={e.id}
@@ -229,8 +264,37 @@ export default function ChildPage() {
                 </div>
               ))}
             </div>
-          </>
-        )}
+          )}
+        </div>
+
+        {/* 4 · Calendar */}
+        <h2 className="mb-2 font-display text-lg font-bold text-slate-700">📅 What&apos;s coming up</h2>
+        <div className="space-y-1.5">
+          {events.length === 0 && (
+            <p className="rounded-2xl bg-white/60 px-4 py-3 text-center font-bold text-slate-400">
+              Nothing on the calendar 🎈
+            </p>
+          )}
+          {events.slice(0, 25).map((e) => {
+            const start = e.allDay ? parseISO(e.start + "T00:00:00") : parseISO(e.start);
+            return (
+              <div
+                key={e.id}
+                className="flex items-center gap-2 rounded-2xl bg-white/75 px-4 py-2.5 shadow-sm"
+              >
+                <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: e.color }} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-sm font-bold text-slate-800">{e.title}</p>
+                  <p className="text-xs font-bold text-slate-500">
+                    {e.allDay
+                      ? `${format(start, "EEE MMM d")} · All day`
+                      : format(start, "EEE MMM d, h:mm a")}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </main>
   );
