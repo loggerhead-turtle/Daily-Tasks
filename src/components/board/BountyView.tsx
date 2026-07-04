@@ -109,8 +109,8 @@ export function BountyView({
                     <RewardTag points={c.points} cents={c.cents} />
                   </p>
                 </div>
-                <span className="rounded-full bg-amber-400 px-4 py-2 font-display text-lg font-bold text-white shadow">
-                  {open ? "Close" : "Claim"}
+                <span className="rounded-full bg-emerald-500 px-4 py-2 font-display text-lg font-bold text-white shadow">
+                  {open ? "Close" : "💵 Claim"}
                 </span>
               </button>
 

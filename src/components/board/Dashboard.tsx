@@ -189,7 +189,7 @@ export function Dashboard({
 
         <button
           onClick={onOpenBounty}
-          className="flex shrink-0 items-center gap-2 rounded-full bg-amber-400 px-5 py-3 font-display text-xl font-bold text-white shadow-lg transition active:scale-95"
+          className="flex shrink-0 items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-display text-xl font-bold text-white shadow-lg transition active:scale-95"
         >
           💰 Bounty
         </button>
