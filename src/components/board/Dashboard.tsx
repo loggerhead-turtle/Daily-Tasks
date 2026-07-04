@@ -172,6 +172,18 @@ export function Dashboard({
           ))}
         </div>
 
+        {/* Selected child's balances — points and real money */}
+        {selectedMember && selectedMember.role === "child" && (
+          <div className="flex shrink-0 items-center gap-3 rounded-full bg-white/75 px-5 py-2.5 shadow-lg backdrop-blur">
+            <span className="font-display text-2xl font-bold text-amber-500">
+              ⭐ {selectedMember.balance}
+            </span>
+            <span className="font-display text-2xl font-bold text-emerald-600">
+              ${(selectedMember.earningsCents / 100).toFixed(2)}
+            </span>
+          </div>
+        )}
+
         <button
           onClick={() =>
             onOpenRewards(selectedMember?.role === "child" ? selectedMember.id : null)

@@ -149,7 +149,7 @@ export type BoardState = {
     has_pin: boolean;
     board_layout: BoardLayout | null;
   };
-  members: (Member & { balance: number })[];
+  members: (Member & { balance: number; earningsCents: number })[];
   chores: ChoreInstance[];
   rewards: Reward[];
   redemptions: Redemption[];
