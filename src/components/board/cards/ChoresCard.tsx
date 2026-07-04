@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { BoardState, ChoreInstance, Member } from "@/lib/types";
 import { boardFetch } from "../useBoard";
 import { useDragScroll } from "../useDragScroll";
-import { BigAvatar } from "../bits";
+import { BigAvatar, RewardTag } from "../bits";
 
 function celebrate(color: string) {
   confetti({
@@ -67,7 +67,11 @@ function ChoreRow({
         <span className={`block truncate font-display text-lg font-bold ${doneish ? "text-slate-500" : "text-slate-800"}`}>
           {c.title}
         </span>
-        {showPoints && <span className="text-xs font-bold text-amber-600">⭐ +{c.points}</span>}
+        {showPoints && (
+          <span className="text-xs">
+            <RewardTag points={c.points} cents={c.cents} />
+          </span>
+        )}
       </span>
       <StatusBadge status={instance.status} />
     </motion.button>
@@ -166,7 +170,7 @@ export function ChoresCard({
         {grabs.length > 0 && (selectedKid || kids.length > 0) && (
           <div>
             <p className="mb-1.5 mt-1 font-display text-base font-bold text-amber-600">
-              🌟 Bonus — first to tap wins!
+              💰 Bounties — first to claim!
             </p>
             <div className="space-y-1.5">
               {grabs.map((ci) => (

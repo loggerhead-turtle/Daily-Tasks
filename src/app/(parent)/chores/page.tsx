@@ -108,7 +108,7 @@ export default function ChoresPage() {
         ? (members.find((m) => m.id === c.member_id)?.name ?? "?")
         : c.assign_type === "rotation"
           ? `Rotates: ${c.rotation_member_ids.map((id) => members.find((m) => m.id === id)?.name ?? "?").join(" → ")}`
-          : "Up for grabs (bonus)";
+          : "Bounty — anyone can claim";
     return `${when} · ${who}`;
   }
 
@@ -194,7 +194,7 @@ export default function ChoresPage() {
                 [
                   ["fixed", "One child"],
                   ["rotation", "Rotates weekly"],
-                  ["grab", "Up for grabs (bonus)"],
+                  ["grab", "Bounty (anyone claims)"],
                 ] as const
               ).map(([value, label]) => (
                 <button

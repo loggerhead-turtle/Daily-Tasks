@@ -37,7 +37,7 @@ export function Dashboard({
   scale,
   setScale,
   onExitEdit,
-  onOpenRewards,
+  onOpenBounty,
 }: {
   state: BoardState;
   refresh: () => void;
@@ -46,7 +46,7 @@ export function Dashboard({
   scale: number;
   setScale: (n: number) => void;
   onExitEdit: () => void;
-  onOpenRewards: (memberId: string | null) => void;
+  onOpenBounty: () => void;
 }) {
   const [selected, setSelected] = useState<"all" | string>("all");
   const [layout, setLayout] = useState<BoardLayout>(() => sanitizeLayout(state.family.board_layout));
@@ -188,12 +188,10 @@ export function Dashboard({
         )}
 
         <button
-          onClick={() =>
-            onOpenRewards(selectedMember?.role === "child" ? selectedMember.id : null)
-          }
+          onClick={onOpenBounty}
           className="flex shrink-0 items-center gap-2 rounded-full bg-amber-400 px-5 py-3 font-display text-xl font-bold text-white shadow-lg transition active:scale-95"
         >
-          🎁 Prizes
+          💰 Bounty
         </button>
         <WeatherWidget weather={state.weather} />
       </header>
