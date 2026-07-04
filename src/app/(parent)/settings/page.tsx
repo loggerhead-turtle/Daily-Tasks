@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { KeyRound, MapPin, MonitorSmartphone } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { KeyRound, MapPin, MonitorSmartphone, Trash2 } from "lucide-react";
+import { formatDistanceToNow, parseISO } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { useFamily } from "@/components/parent/useFamily";
 
 type GeoResult = { name: string; admin1?: string; country_code: string; latitude: number; longitude: number };
+type Device = { id: string; name: string; last_seen_at: string | null; created_at: string };
 
 export default function SettingsPage() {
   const { family, loading, reload } = useFamily();
@@ -15,6 +17,32 @@ export default function SettingsPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
   const [saverMinutes, setSaverMinutes] = useState<number | null>(null);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  const loadDevices = useCallback(async () => {
+    if (!family) return;
+    const { data } = await createClient()
+      .from("boards")
+      .select("id, name, last_seen_at, created_at")
+      .eq("family_id", family.id)
+      .order("created_at", { ascending: false });
+    setDevices((data as Device[]) ?? []);
+  }, [family]);
+
+  useEffect(() => {
+    loadDevices();
+  }, [loadDevices]);
+
+  async function revokeDevice(d: Device) {
+    if (!confirm(`Unpair "${d.name}"? It will drop to the pairing screen and need a new code.`)) return;
+    setRevoking(d.id);
+    // Deleting the board row invalidates its token; the board gets a 401 on its
+    // next poll and returns to the pairing screen on its own.
+    await createClient().from("boards").delete().eq("id", d.id);
+    setRevoking(null);
+    loadDevices();
+  }
 
   async function savePin() {
     setPinMsg(null);
@@ -92,6 +120,40 @@ export default function SettingsPage() {
             <code className="rounded-lg bg-violet-50 px-4 py-2 font-mono text-2xl font-bold tracking-[0.3em] text-violet-700">
               {pairCode}
             </code>
+          )}
+        </div>
+
+        <div className="border-t border-slate-100 pt-3">
+          <h3 className="mb-2 text-sm font-bold text-slate-700">Paired devices</h3>
+          {devices.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No devices paired yet. Generate a code above and enter it on the board.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {devices.map((d) => (
+                <li key={d.id} className="flex items-center gap-3 py-2">
+                  <MonitorSmartphone size={18} className="shrink-0 text-slate-400" />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-800">{d.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {d.last_seen_at
+                        ? `Last seen ${formatDistanceToNow(parseISO(d.last_seen_at), { addSuffix: true })}`
+                        : "Never connected"}
+                    </p>
+                  </div>
+                  <button
+                    className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                    onClick={() => revokeDevice(d)}
+                    disabled={revoking === d.id}
+                    aria-label={`Unpair ${d.name}`}
+                    title="Unpair this device"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </section>
