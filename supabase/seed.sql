@@ -73,7 +73,8 @@ begin
     (fam, 'Grandma arrives Saturday!', '👵', current_date, current_date + 7),
     (fam, 'Soccer practice moved to 5pm this week', '⚽', current_date, current_date + 5);
 
-  -- Kitchen board pairing code (long-lived, for the demo)
-  insert into pairing_codes (code, family_id, expires_at)
-  values ('DEMO1234', fam, now() + interval '10 years');
+  -- To pair the kitchen board, generate a fresh single-use code from the
+  -- parent web app (Settings → Pair the kitchen board). We intentionally do
+  -- NOT seed a long-lived code: a permanent, well-known pairing code would be
+  -- a standing backdoor into the family's board.
 end $$;
