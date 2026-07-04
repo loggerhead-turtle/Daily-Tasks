@@ -63,3 +63,18 @@ Turns a Raspberry Pi 5 + touchscreen into the kitchen board.
   fc-cache -f
   pkill -f family-board-kiosk   # the autostart loop relaunches Chromium
   ```
+
+- **Boot stops on an "unlock keyring" password box** (and never reaches the board):
+  on autologin there's no password to unlock the GNOME keyring, so Chromium's
+  request for it blocks. The fix is the `--password-store=basic` flag, which newer
+  setups add automatically. Update an existing kiosk by pulling the latest repo and
+  re-running the setup script (safe to re-run):
+
+  ```bash
+  cd ~/daily-tasks && git pull
+  sudo bash pi/setup-kiosk.sh https://your-board-url https://your-project.supabase.co
+  sudo reboot
+  ```
+
+  This also switches the boot to a plain **black screen** (no desktop, panel, or
+  cursor) until the board is ready, so nobody sees the desktop.

@@ -43,8 +43,10 @@ apt-get update
 # fonts-noto-color-emoji is essential: without a color-emoji font every emoji on
 # the board (member icons, chore/meal/weather glyphs) renders as an empty "tofu"
 # box. Raspberry Pi OS does not ship one by default.
-apt-get install -y --no-install-recommends chromium-browser unclutter-xfixes fonts-noto-color-emoji || \
-  apt-get install -y --no-install-recommends chromium unclutter-xfixes fonts-noto-color-emoji || true
+# swaybg paints a solid black background so the desktop never flashes before
+# the board loads (see the autostart section below).
+apt-get install -y --no-install-recommends chromium-browser unclutter-xfixes fonts-noto-color-emoji swaybg || \
+  apt-get install -y --no-install-recommends chromium unclutter-xfixes fonts-noto-color-emoji swaybg || true
 CHROMIUM_BIN="$(command -v chromium-browser || command -v chromium)"
 
 # Rebuild the font cache so Chromium picks up the emoji font on first launch.
@@ -90,8 +92,12 @@ cat > /usr/local/bin/family-board-kiosk <<LAUNCH
 # Wait for the network so the board doesn't boot to an error page.
 until ping -c1 -W2 8.8.8.8 >/dev/null 2>&1; do sleep 2; done
 
+# --password-store=basic: on autologin there's no session password to unlock
+# the GNOME keyring, so Chromium would otherwise pop a blocking "unlock keyring"
+# dialog and never reach the board. This tells it to skip the system keyring.
 exec ${CHROMIUM_BIN} \\
   --kiosk "${BOARD_URL}/board" \\
+  --password-store=basic \\
   --noerrdialogs \\
   --disable-infobars \\
   --disable-session-crashed-bubble \\
@@ -109,8 +115,10 @@ echo "==> Autostarting the kiosk on login (labwc / Wayland)"
 mkdir -p "$KIOSK_HOME/.config/labwc"
 AUTOSTART="$KIOSK_HOME/.config/labwc/autostart"
 touch "$AUTOSTART"
-sed -i '/family-board-kiosk/d' "$AUTOSTART"
+sed -i '/family-board-kiosk/d; /swaybg/d' "$AUTOSTART"
 cat >> "$AUTOSTART" <<AUTO
+# Paint the screen black immediately so the desktop never shows before the board.
+swaybg -c '#000000' >/dev/null 2>&1 &
 # Family Board kiosk — restart the browser forever if it exits
 bash -c 'while true; do /usr/local/bin/family-board-kiosk; sleep 3; done' &
 AUTO
@@ -119,11 +127,12 @@ AUTO
 mkdir -p "$KIOSK_HOME/.config/lxsession/LXDE-pi"
 XAUTOSTART="$KIOSK_HOME/.config/lxsession/LXDE-pi/autostart"
 touch "$XAUTOSTART"
-sed -i '/family-board-kiosk/d; /unclutter/d; /xset/d' "$XAUTOSTART"
+sed -i '/family-board-kiosk/d; /unclutter/d; /xset/d; /xsetroot/d' "$XAUTOSTART"
 cat >> "$XAUTOSTART" <<XAUTO
 @xset s off
 @xset -dpms
 @xset s noblank
+@xsetroot -solid black
 @unclutter -idle 5
 @bash -c 'while true; do /usr/local/bin/family-board-kiosk; sleep 3; done'
 XAUTO
