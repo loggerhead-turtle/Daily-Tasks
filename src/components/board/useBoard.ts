@@ -40,7 +40,9 @@ export async function boardFetch(path: string, init?: RequestInit & { pin?: stri
     ...((init?.headers as Record<string, string>) ?? {}),
   };
   if (init?.pin) headers["x-parent-pin"] = init.pin;
-  return fetch(path, { ...init, headers });
+  // Never let the browser serve a cached response for the board's polled data —
+  // the display must always reflect the latest state (balances, approvals…).
+  return fetch(path, { cache: "no-store", ...init, headers });
 }
 
 // Polls board state (chores, points, meals, announcements, weather…).

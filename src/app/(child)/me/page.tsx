@@ -33,7 +33,7 @@ export default function ChildPage() {
 
   const load = useCallback(async () => {
     const date = new Date().toISOString().slice(0, 10);
-    const res = await fetch(`/api/child/state?date=${date}`);
+    const res = await fetch(`/api/child/state?date=${date}`, { cache: "no-store" });
     if (res.status === 401) {
       router.push("/login");
       return;
@@ -46,7 +46,8 @@ export default function ChildPage() {
     const from = now.toISOString();
     const to = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const res = await fetch(
-      `/api/child/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+      `/api/child/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { cache: "no-store" }
     );
     if (res.ok) setEvents((await res.json()).events ?? []);
   }, []);
