@@ -11,16 +11,29 @@
 #   • Auto-restart if the browser crashes; starts on boot
 #
 # Usage:
-#   sudo bash setup-kiosk.sh https://your-app.onrender.com
+#   sudo bash setup-kiosk.sh https://your-board-url [https://your-project.supabase.co]
+#
+# The 2nd argument is your Supabase project URL (NEXT_PUBLIC_SUPABASE_URL).
+# It's needed so the board can load avatars and screensaver photos; without it
+# those images are blocked by the kiosk allowlist.
 #
 set -euo pipefail
 
 BOARD_URL="${1:-}"
 if [[ -z "$BOARD_URL" ]]; then
-  echo "Usage: sudo bash setup-kiosk.sh https://your-app.onrender.com"
+  echo "Usage: sudo bash setup-kiosk.sh https://your-board-url [https://your-project.supabase.co]"
   exit 1
 fi
 BOARD_URL="${BOARD_URL%/}"
+
+SUPABASE_URL="${2:-}"
+SUPABASE_HOST=""
+if [[ -n "$SUPABASE_URL" ]]; then
+  SUPABASE_HOST="$(echo "$SUPABASE_URL" | sed -E 's#^https?://##; s#/.*$##')"
+else
+  echo "WARNING: no Supabase URL given — avatars and screensaver photos will be"
+  echo "         blocked. Re-run with your NEXT_PUBLIC_SUPABASE_URL as the 2nd arg."
+fi
 
 KIOSK_USER="${SUDO_USER:-pi}"
 KIOSK_HOME="$(eval echo "~$KIOSK_USER")"
@@ -32,13 +45,24 @@ apt-get install -y --no-install-recommends chromium-browser unclutter-xfixes || 
 CHROMIUM_BIN="$(command -v chromium-browser || command -v chromium)"
 
 echo "==> Locking Chromium to the board (URL allowlist policy)"
-# Navigation is blocked everywhere except the board app. The parent website
-# is NOT allowed here on purpose — parents manage from their own devices.
+# Everything is blocked except what the board actually needs:
+#   /board        the kiosk page itself
+#   /api          its data endpoints (state, events, chore/redeem actions)
+#   /_next        the app's own JS/CSS/fonts (blank screen without this)
+#   /favicon.ico  tab icon
+#   <supabase>    avatars + screensaver photos
+# The parent-only pages (/, /settings, /login, …) are NOT allowlisted, so a
+# kid cannot reach the management app from the board — and the rest of the
+# internet stays blocked too.
+SUPABASE_ALLOW=""
+if [[ -n "$SUPABASE_HOST" ]]; then
+  SUPABASE_ALLOW=", \"${SUPABASE_HOST}\""
+fi
 mkdir -p /etc/chromium/policies/managed /etc/chromium-browser/policies/managed
 cat > /etc/chromium/policies/managed/family-board-kiosk.json <<POLICY
 {
   "URLBlocklist": ["*"],
-  "URLAllowlist": ["${BOARD_URL}/board", "${BOARD_URL}/board/*"],
+  "URLAllowlist": ["${BOARD_URL}/board", "${BOARD_URL}/api", "${BOARD_URL}/_next", "${BOARD_URL}/favicon.ico"${SUPABASE_ALLOW}],
   "IncognitoModeAvailability": 1,
   "BrowserAddPersonEnabled": false,
   "BookmarkBarEnabled": false,
