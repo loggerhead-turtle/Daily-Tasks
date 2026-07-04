@@ -104,18 +104,21 @@ export function Dashboard({
       body: JSON.stringify({ layout }),
     });
     setSaving(false);
+    const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       // Don't silently swallow a failed save (e.g. the board_layout column
       // hasn't been added to the database yet) — the layout would just snap
       // back on the next refresh and look like nothing happened.
-      const msg = await res.json().catch(() => ({}));
       alert(
         `Couldn't save the layout (${res.status}). ${
-          msg.error ?? "Check that database migration 0002 has been run in Supabase."
+          body.error ?? "Check that database migration 0002 has been run in Supabase."
         }`
       );
       return;
     }
+    // Apply the server-confirmed layout right away so there's no chance the
+    // refresh/edit-mode timing snaps it back to the old one.
+    if (body.layout) setLayout(sanitizeLayout(body.layout));
     await refresh();
     onExitEdit();
   }
