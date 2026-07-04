@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authParent } from "@/lib/parentAuth";
+import { CHILD_LOGIN_DOMAIN, resolveLoginEmail } from "@/lib/childLogin";
 import type { Member } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-// List which child members already have a phone login (memberId -> email).
+// Supabase says "already been registered" when an email/username is taken.
+function friendlyAuthError(msg: string): string {
+  if (/already|registered|exists/i.test(msg)) {
+    return "That username or email is already taken — pick another.";
+  }
+  return msg;
+}
+
+// List each child member's login as the parent should see it: their username
+// if they have one, otherwise their real email. (A username-based account has a
+// synthetic @kids.familyboard.local email that we never show.)
 export async function GET() {
   const ctx = await authParent();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,14 +28,20 @@ export async function GET() {
 
   const { data: profiles } = await ctx.admin
     .from("profiles")
-    .select("id, member_id")
+    .select("id, member_id, username")
     .eq("role", "child");
 
   const logins: Record<string, string> = {};
   for (const p of profiles ?? []) {
     if (!p.member_id || !memberIds.has(p.member_id)) continue;
+    if (p.username) {
+      logins[p.member_id] = p.username;
+      continue;
+    }
     const { data } = await ctx.admin.auth.admin.getUserById(p.id);
-    if (data.user?.email) logins[p.member_id] = data.user.email;
+    if (data.user?.email && !data.user.email.endsWith(`@${CHILD_LOGIN_DOMAIN}`)) {
+      logins[p.member_id] = data.user.email;
+    }
   }
   return NextResponse.json({ logins });
 }
@@ -36,17 +53,28 @@ export async function POST(req: NextRequest) {
   const ctx = await authParent();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { memberId, email, password } = (await req.json()) as {
+  // `login` is what the parent typed: a real email or a plain username.
+  const { memberId, login, password } = (await req.json()) as {
     memberId?: string;
-    email?: string;
+    login?: string;
     password?: string;
   };
-  if (!memberId || !email || !password) {
-    return NextResponse.json({ error: "Missing memberId, email or password" }, { status: 400 });
+  if (!memberId || !login || !password) {
+    return NextResponse.json({ error: "Missing memberId, login or password" }, { status: 400 });
   }
   if (password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
   }
+
+  const email = resolveLoginEmail(login);
+  if (!email) {
+    return NextResponse.json(
+      { error: "Enter a valid email, or a username of at least 3 letters/numbers." },
+      { status: 400 }
+    );
+  }
+  // Keep the plain username to show the parent (null when they used an email).
+  const username = login.includes("@") ? null : login.trim();
 
   // The member must be a child in this parent's family.
   const { data: member } = await ctx.admin
@@ -60,7 +88,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Logins are for children only." }, { status: 400 });
   }
 
-  // Already has a login? Update email/password instead of creating a duplicate.
+  // Already has a login? Update email/username/password instead of duplicating.
   const { data: existing } = await ctx.admin
     .from("profiles")
     .select("id")
@@ -70,7 +98,10 @@ export async function POST(req: NextRequest) {
 
   if (existing) {
     const { error } = await ctx.admin.auth.admin.updateUserById(existing.id, { email, password });
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      return NextResponse.json({ error: friendlyAuthError(error.message) }, { status: 400 });
+    }
+    await ctx.admin.from("profiles").update({ username }).eq("id", existing.id);
     return NextResponse.json({ ok: true, updated: true });
   }
 
@@ -80,7 +111,10 @@ export async function POST(req: NextRequest) {
     email_confirm: true,
   });
   if (createErr || !created.user) {
-    return NextResponse.json({ error: createErr?.message ?? "Could not create login" }, { status: 400 });
+    return NextResponse.json(
+      { error: friendlyAuthError(createErr?.message ?? "Could not create login") },
+      { status: 400 }
+    );
   }
 
   const { error: profErr } = await ctx.admin.from("profiles").insert({
@@ -88,6 +122,7 @@ export async function POST(req: NextRequest) {
     family_id: null, // children are scoped via member_id, not family RLS
     role: "child",
     member_id: memberId,
+    username,
     display_name: member.name,
   });
   if (profErr) {

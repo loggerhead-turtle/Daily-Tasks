@@ -49,7 +49,7 @@ export default function FamilyPage() {
     const res = await fetch("/api/parent/child-login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memberId, email: loginEmail.trim(), password: loginPassword }),
+      body: JSON.stringify({ memberId, login: loginEmail.trim(), password: loginPassword }),
     });
     setLoginBusy(false);
     if (!res.ok) {
@@ -237,13 +237,16 @@ export default function FamilyPage() {
             {loginFor === m.id && (
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="mb-2 text-xs font-bold text-slate-500">
-                  {m.name} signs in at the same login page with this email &amp; password.
+                  {m.name} signs in at the same login page. Use a simple username (e.g.{" "}
+                  <span className="font-mono">ava</span>) or an email — plus a password.
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input
                     className="input"
-                    type="email"
-                    placeholder="child@email.com"
+                    type="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    placeholder="Username or email"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                   />
