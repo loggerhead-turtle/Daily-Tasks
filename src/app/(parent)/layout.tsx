@@ -11,6 +11,7 @@ import {
   MonitorSmartphone,
   Settings,
   Users,
+  Wallet,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -18,6 +19,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/chores", label: "Chores", icon: ListChecks },
   { href: "/rewards", label: "Rewards", icon: Gift },
+  { href: "/earnings", label: "Money", icon: Wallet },
   { href: "/family", label: "Family", icon: Users },
   { href: "/calendars", label: "Calendars", icon: CalendarDays },
   { href: "/content", label: "Board content", icon: MonitorSmartphone },

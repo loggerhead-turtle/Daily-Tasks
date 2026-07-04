@@ -117,7 +117,7 @@ export function ChoresCard({
         )}
       </AnimatePresence>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto no-scrollbar">
+      <div className="min-h-0 flex-1 space-y-2 board-scroll">
         {selectedKid ? (
           <>
             {state.chores

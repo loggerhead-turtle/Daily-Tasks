@@ -25,6 +25,27 @@
   scrollbar-width: none;
 }
 
+/* A visible, chunky, touch-friendly scrollbar for the board's cards so it's
+   obvious a card scrolls (and easy to drag) on the kitchen touchscreen. */
+.board-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+}
+.board-scroll::-webkit-scrollbar {
+  width: 14px;
+}
+.board-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.55);
+  border-radius: 9999px;
+  border: 4px solid transparent;
+  background-clip: content-box;
+}
+.board-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 @layer components {
   .card {
     @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;

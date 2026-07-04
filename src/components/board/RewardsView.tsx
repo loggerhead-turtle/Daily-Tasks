@@ -86,7 +86,7 @@ export function RewardsView({
           <p className="font-display text-3xl font-bold text-slate-500">Tap your face to see your prizes!</p>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
+        <div className="min-h-0 flex-1 board-scroll">
           <p className="mb-3 font-display text-2xl font-bold text-slate-700">
             {kid.name}, you have <span className="text-amber-600">⭐ {kid.balance}</span> points
             {pendingHold > 0 && (

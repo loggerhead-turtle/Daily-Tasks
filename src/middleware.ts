@@ -42,6 +42,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Route by role: children only ever see their own /me page; parents never
+  // land on it. (The board and API routes are excluded above.)
+  if (user && !isPublic) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const isChild = profile?.role === "child";
+    const onChildPage = pathname === "/me" || pathname.startsWith("/me/");
+    if (isChild && !onChildPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/me";
+      return NextResponse.redirect(url);
+    }
+    if (!isChild && onChildPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return response;
 }
 

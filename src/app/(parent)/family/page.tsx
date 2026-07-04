@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Plus, Trash2, Upload } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { KeyRound, Plus, Trash2, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useFamily } from "@/components/parent/useFamily";
 import { MemberAvatar } from "@/components/parent/MemberChip";
@@ -18,6 +18,47 @@ export default function FamilyPage() {
   const [color, setColor] = useState(COLORS[0]);
   const [emoji, setEmoji] = useState(EMOJI[0]);
   const fileInputs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  // Child phone logins (memberId -> email) and the inline "set login" editor.
+  const [logins, setLogins] = useState<Record<string, string>>({});
+  const [loginFor, setLoginFor] = useState<string | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const loadLogins = useCallback(async () => {
+    const res = await fetch("/api/parent/child-login");
+    if (res.ok) setLogins((await res.json()).logins ?? {});
+  }, []);
+
+  useEffect(() => {
+    loadLogins();
+  }, [loadLogins]);
+
+  function openLogin(m: Member) {
+    setLoginFor(m.id);
+    setLoginEmail(logins[m.id] ?? "");
+    setLoginPassword("");
+    setLoginError(null);
+  }
+
+  async function saveLogin(memberId: string) {
+    setLoginBusy(true);
+    setLoginError(null);
+    const res = await fetch("/api/parent/child-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, email: loginEmail.trim(), password: loginPassword }),
+    });
+    setLoginBusy(false);
+    if (!res.ok) {
+      setLoginError((await res.json()).error ?? "Couldn't save the login");
+      return;
+    }
+    setLoginFor(null);
+    await loadLogins();
+  }
 
   async function save() {
     if (!family || !name.trim()) return;
@@ -146,37 +187,89 @@ export default function FamilyPage() {
 
       <ul className="grid gap-3 sm:grid-cols-2">
         {members.map((m) => (
-          <li key={m.id} className="card flex items-center gap-4 !p-4">
-            <MemberAvatar member={m} size={56} />
-            <div className="flex-1">
-              <p className="font-display text-lg font-bold text-slate-800">{m.name}</p>
-              <p className="text-xs capitalize text-slate-500">{m.role}</p>
+          <li key={m.id} className="card flex flex-col gap-3 !p-4">
+            <div className="flex items-center gap-4">
+              <MemberAvatar member={m} size={56} />
+              <div className="flex-1">
+                <p className="font-display text-lg font-bold text-slate-800">{m.name}</p>
+                <p className="text-xs capitalize text-slate-500">
+                  {m.role}
+                  {m.role === "child" && logins[m.id] && (
+                    <span className="ml-1 text-emerald-600">· has a phone login</span>
+                  )}
+                </p>
+              </div>
+              <input
+                ref={(el) => {
+                  if (el) fileInputs.current.set(m.id, el);
+                }}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadAvatar(m, f);
+                  e.target.value = "";
+                }}
+              />
+              {m.role === "child" && (
+                <button
+                  className="btn-secondary !px-2.5 !py-1.5 text-xs"
+                  onClick={() => openLogin(m)}
+                >
+                  <KeyRound size={14} /> {logins[m.id] ? "Reset login" : "Set login"}
+                </button>
+              )}
+              <button
+                className="btn-secondary !px-2.5 !py-1.5 text-xs"
+                onClick={() => fileInputs.current.get(m.id)?.click()}
+              >
+                <Upload size={14} /> Photo
+              </button>
+              <button
+                className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                onClick={() => remove(m)}
+              >
+                <Trash2 size={18} />
+              </button>
             </div>
-            <input
-              ref={(el) => {
-                if (el) fileInputs.current.set(m.id, el);
-              }}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) uploadAvatar(m, f);
-                e.target.value = "";
-              }}
-            />
-            <button
-              className="btn-secondary !px-2.5 !py-1.5 text-xs"
-              onClick={() => fileInputs.current.get(m.id)?.click()}
-            >
-              <Upload size={14} /> Photo
-            </button>
-            <button
-              className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-              onClick={() => remove(m)}
-            >
-              <Trash2 size={18} />
-            </button>
+
+            {loginFor === m.id && (
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="mb-2 text-xs font-bold text-slate-500">
+                  {m.name} signs in at the same login page with this email &amp; password.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input
+                    className="input"
+                    type="email"
+                    placeholder="child@email.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                  />
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="Password (min 8 chars)"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                  />
+                </div>
+                {loginError && <p className="mt-2 text-xs font-bold text-rose-600">{loginError}</p>}
+                <div className="mt-2 flex gap-2">
+                  <button
+                    className="btn !py-1.5 text-xs"
+                    disabled={loginBusy}
+                    onClick={() => saveLogin(m.id)}
+                  >
+                    {loginBusy ? "Saving…" : "Save login"}
+                  </button>
+                  <button className="btn-secondary !py-1.5 text-xs" onClick={() => setLoginFor(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </li>
         ))}
       </ul>

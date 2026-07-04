@@ -27,6 +27,7 @@ export type Chore = {
   description: string | null;
   emoji: string;
   points: number;
+  cents: number; // real-money value paid out for finishing this chore
   assign_type: "fixed" | "rotation" | "grab";
   member_id: string | null;
   rotation_member_ids: string[];
@@ -67,6 +68,17 @@ export type Redemption = {
   status: "pending" | "approved" | "rejected";
   created_at: string;
   reward?: Reward;
+};
+
+export type Earning = {
+  id: string;
+  family_id: string;
+  member_id: string;
+  cents: number; // + earned, − paid out
+  reason: string;
+  kind: "chore" | "payout" | "adjustment";
+  chore_instance_id: string | null;
+  created_at: string;
 };
 
 export type Meal = {
