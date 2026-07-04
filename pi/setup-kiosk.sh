@@ -40,9 +40,15 @@ KIOSK_HOME="$(eval echo "~$KIOSK_USER")"
 
 echo "==> Installing packages"
 apt-get update
-apt-get install -y --no-install-recommends chromium-browser unclutter-xfixes || \
-  apt-get install -y --no-install-recommends chromium unclutter-xfixes || true
+# fonts-noto-color-emoji is essential: without a color-emoji font every emoji on
+# the board (member icons, chore/meal/weather glyphs) renders as an empty "tofu"
+# box. Raspberry Pi OS does not ship one by default.
+apt-get install -y --no-install-recommends chromium-browser unclutter-xfixes fonts-noto-color-emoji || \
+  apt-get install -y --no-install-recommends chromium unclutter-xfixes fonts-noto-color-emoji || true
 CHROMIUM_BIN="$(command -v chromium-browser || command -v chromium)"
+
+# Rebuild the font cache so Chromium picks up the emoji font on first launch.
+fc-cache -f >/dev/null 2>&1 || true
 
 echo "==> Locking Chromium to the board (URL allowlist policy)"
 # Everything is blocked except what the board actually needs:

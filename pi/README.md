@@ -51,3 +51,15 @@ Turns a Raspberry Pi 5 + touchscreen into the kitchen board.
 - **Nightly refresh (optional)**: some people like a 4 a.m. browser restart for a
   guaranteed fresh slate: `crontab -e` → `0 4 * * * pkill -f family-board-kiosk`.
   The autostart loop restarts it immediately.
+
+## Troubleshooting
+
+- **Emoji show as empty boxes** (member icons, chore/meal glyphs render as a hollow
+  rectangle): the Pi is missing a color-emoji font. Newer setups install it
+  automatically; on an older kiosk run:
+
+  ```bash
+  sudo apt update && sudo apt install -y fonts-noto-color-emoji
+  fc-cache -f
+  pkill -f family-board-kiosk   # the autostart loop relaunches Chromium
+  ```
