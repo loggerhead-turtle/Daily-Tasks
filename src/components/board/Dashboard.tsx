@@ -98,12 +98,24 @@ export function Dashboard({
 
   async function save() {
     setSaving(true);
-    await boardFetch("/api/board/layout", {
+    const res = await boardFetch("/api/board/layout", {
       method: "POST",
       pin: editPin,
       body: JSON.stringify({ layout }),
     });
     setSaving(false);
+    if (!res.ok) {
+      // Don't silently swallow a failed save (e.g. the board_layout column
+      // hasn't been added to the database yet) — the layout would just snap
+      // back on the next refresh and look like nothing happened.
+      const msg = await res.json().catch(() => ({}));
+      alert(
+        `Couldn't save the layout (${res.status}). ${
+          msg.error ?? "Check that database migration 0002 has been run in Supabase."
+        }`
+      );
+      return;
+    }
     await refresh();
     onExitEdit();
   }

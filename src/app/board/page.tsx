@@ -153,20 +153,32 @@ export default function BoardPage() {
         </AnimatePresence>
       )}
 
-      {/* Discreet parent-mode gear with a pending badge */}
-      {state && view.name !== "parent" && !editMode && (
-        <button
-          onClick={() => setView({ name: "parent" })}
-          className="absolute bottom-4 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-white/50 text-2xl opacity-60 shadow backdrop-blur transition active:scale-90"
-          aria-label="Parent mode"
-        >
-          ⚙️
-          {state.pendingCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 font-display text-sm font-bold text-white">
-              {state.pendingCount}
-            </span>
+      {/* Refresh + discreet parent-mode gear with a pending badge */}
+      {state && !editMode && (
+        <div className="absolute bottom-4 right-4 z-30 flex items-center gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-white/50 text-2xl opacity-60 shadow backdrop-blur transition active:scale-90"
+            aria-label="Refresh board"
+            title="Refresh"
+          >
+            🔄
+          </button>
+          {view.name !== "parent" && (
+            <button
+              onClick={() => setView({ name: "parent" })}
+              className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white/50 text-2xl opacity-60 shadow backdrop-blur transition active:scale-90"
+              aria-label="Parent mode"
+            >
+              ⚙️
+              {state.pendingCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 font-display text-sm font-bold text-white">
+                  {state.pendingCount}
+                </span>
+              )}
+            </button>
           )}
-        </button>
+        </div>
       )}
 
       {asleep && <Screensaver photos={state?.photos ?? []} />}
