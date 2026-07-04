@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { Camera, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { ChoreInstance, Earning } from "@/lib/types";
 
@@ -23,6 +23,8 @@ export default function ChildPage() {
   const router = useRouter();
   const [state, setState] = useState<ChildState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const date = new Date().toISOString().slice(0, 10);
@@ -46,6 +48,19 @@ export default function ChildPage() {
       body: JSON.stringify({ instanceId }),
     });
     setBusy(null);
+    await load();
+  }
+
+  async function uploadPhoto(file: File) {
+    setUploading(true);
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch("/api/child/avatar", { method: "POST", body });
+    setUploading(false);
+    if (!res.ok) {
+      alert((await res.json().catch(() => ({}))).error ?? "Couldn't upload the picture");
+      return;
+    }
     await load();
   }
 
@@ -73,9 +88,12 @@ export default function ChildPage() {
       <div className="mx-auto max-w-md px-4 pt-6">
         {/* Header */}
         <header className="mb-5 flex items-center gap-3">
-          <span
-            className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-4 border-white text-3xl shadow"
+          <button
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading}
+            className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white text-3xl shadow transition active:scale-95"
             style={{ backgroundColor: member.color }}
+            aria-label="Change my picture"
           >
             {member.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -83,7 +101,21 @@ export default function ChildPage() {
             ) : (
               member.emoji
             )}
-          </span>
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-white shadow">
+              <Camera size={13} />
+            </span>
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) uploadPhoto(f);
+              e.target.value = "";
+            }}
+          />
           <div className="flex-1">
             <p className="font-display text-2xl font-bold text-slate-800">Hi, {member.name}!</p>
             <p className="text-sm font-bold text-slate-500">⭐ {state.points} points</p>

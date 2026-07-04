@@ -5,6 +5,7 @@ import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "framer-motion";
 import type { BoardState } from "@/lib/types";
 import { boardFetch } from "./useBoard";
+import { useDragScroll } from "./useDragScroll";
 import { BackButton, BigAvatar } from "./bits";
 
 // Full-screen prize catalog, reached from the top nav. Kids pick their face,
@@ -23,6 +24,7 @@ export function RewardsView({
   const kids = state.members.filter((m) => m.role === "child");
   const [kidId, setKidId] = useState<string | null>(initialMemberId);
   const [toast, setToast] = useState<string | null>(null);
+  const drag = useDragScroll();
   const kid = kids.find((k) => k.id === kidId) ?? null;
 
   const pendingHold = kid
@@ -86,7 +88,7 @@ export function RewardsView({
           <p className="font-display text-3xl font-bold text-slate-500">Tap your face to see your prizes!</p>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 board-scroll">
+        <div className="min-h-0 flex-1 board-scroll" {...drag}>
           <p className="mb-3 font-display text-2xl font-bold text-slate-700">
             {kid.name}, you have <span className="text-amber-600">⭐ {kid.balance}</span> points
             {pendingHold > 0 && (

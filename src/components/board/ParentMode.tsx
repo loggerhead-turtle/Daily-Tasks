@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import type { BoardState } from "@/lib/types";
 import { boardFetch, clearBoardToken } from "./useBoard";
+import { useDragScroll } from "./useDragScroll";
 import { BackButton, BigAvatar } from "./bits";
 
 // PIN-gated parent mode on the board: approve chores/redemptions at the
@@ -23,6 +24,7 @@ export function ParentMode({
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const drag = useDragScroll();
 
   async function tryPin(value: string) {
     setPin(value);
@@ -135,7 +137,7 @@ export function ParentMode({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-3 board-scroll">
+      <div className="min-h-0 flex-1 space-y-3 board-scroll" {...drag}>
         {pendingChores.length === 0 && state.redemptions.length === 0 && (
           <p className="mt-16 text-center font-display text-3xl font-bold text-slate-400">
             Nothing waiting — nice work, team! 🎉
