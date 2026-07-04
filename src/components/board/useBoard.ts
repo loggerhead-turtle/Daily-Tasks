@@ -44,7 +44,11 @@ export function useBoardState(paired: boolean) {
         setUnauthorized(true);
         return;
       }
-      if (res.ok) setState(await res.json());
+      if (res.ok) {
+        // Clear any prior unauthorized flag so a later revoke re-triggers unpair.
+        setUnauthorized(false);
+        setState(await res.json());
+      }
     } catch {
       // Offline — keep showing the last known state.
     }
