@@ -48,7 +48,7 @@ export function CalendarCard({
     };
   }, [mode, anchor]);
 
-  const { events } = useEvents(range.from.toISOString(), range.to.toISOString(), true);
+  const { events, issues } = useEvents(range.from.toISOString(), range.to.toISOString(), true);
   const visible = events.filter((e) => selected === "all" || e.memberId === selected);
 
   function shift(dir: 1 | -1) {
@@ -103,6 +103,12 @@ export function CalendarCard({
           ))}
         </div>
       </div>
+
+      {issues.length > 0 && (
+        <div className="mb-2 rounded-2xl bg-amber-100/90 px-4 py-2 font-display text-sm font-bold text-amber-800 shadow-sm">
+          ⚠️ {issues[0]}
+        </div>
+      )}
 
       {mode === "day" && <DayView events={visible.filter((e) => isSameDay(eventDay(e), anchor))} />}
       {mode === "week" && (

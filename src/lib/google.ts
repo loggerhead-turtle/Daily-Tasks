@@ -105,22 +105,28 @@ type GoogleEvent = {
 };
 
 // Fetch and merge events for every enabled linked calendar in a family.
+// Returns any per-calendar problems (expired token, Google errors) alongside
+// the events so the board can tell "genuinely free day" apart from "couldn't
+// reach Google" — otherwise both just look like an empty calendar.
 export async function fetchFamilyEvents(
   admin: SupabaseClient,
   familyId: string,
   timeMin: string,
   timeMax: string
-): Promise<CalendarEvent[]> {
+): Promise<{ events: CalendarEvent[]; issues: string[] }> {
   const [{ data: links }, { data: conns }, { data: members }] = await Promise.all([
     admin.from("calendar_links").select("*").eq("family_id", familyId).eq("enabled", true),
     admin.from("google_connections").select("*").eq("family_id", familyId),
     admin.from("members").select("*").eq("family_id", familyId),
   ]);
-  if (!links?.length || !conns?.length) return [];
+  if (!conns?.length) return { events: [], issues: ["No Google account is connected."] };
+  if (!links?.length)
+    return { events: [], issues: ["No calendars are turned on — enable them on the Calendars page."] };
 
   const connById = new Map((conns as GoogleConnection[]).map((c) => [c.id, c]));
   const memberById = new Map((members as Member[] | null)?.map((m) => [m.id, m]) ?? []);
   const tokenCache = new Map<string, Promise<string>>();
+  const issues: string[] = [];
 
   const results = await Promise.all(
     (links as CalendarLink[]).map(async (link) => {
@@ -142,7 +148,13 @@ export async function fetchFamilyEvents(
           )}/events?${params}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        if (!res.ok) return [];
+        if (!res.ok) {
+          const body = await res.text();
+          const msg = `Google Calendar "${link.label}" (${conn.google_email}) returned ${res.status}: ${body.slice(0, 300)}`;
+          console.error(msg);
+          issues.push(`Couldn't load "${link.label}" (Google returned ${res.status}).`);
+          return [];
+        }
         const data = (await res.json()) as { items?: GoogleEvent[] };
         const color =
           link.color ?? (link.member_id ? memberById.get(link.member_id)?.color : null) ?? "#64748b";
@@ -158,12 +170,22 @@ export async function fetchFamilyEvents(
             memberId: link.member_id,
             calendarLabel: link.label,
           }));
-      } catch {
+      } catch (e) {
+        const detail = e instanceof Error ? e.message : String(e);
+        console.error(`Calendar fetch failed for "${link.label}" (${conn.google_email}): ${detail}`);
+        // A refresh-token failure (Google apps left in "Testing" expire them
+        // after 7 days) surfaces here — tell the parent to reconnect.
+        issues.push(
+          /invalid_grant|token/i.test(detail)
+            ? `${conn.google_email}'s Google sign-in expired — reconnect it on the Calendars page.`
+            : `Couldn't reach Google for "${link.label}".`
+        );
         return [];
       }
     })
   );
-  return results
-    .flat()
-    .sort((a, b) => a.start.localeCompare(b.start));
+  return {
+    events: results.flat().sort((a, b) => a.start.localeCompare(b.start)),
+    issues: Array.from(new Set(issues)),
+  };
 }

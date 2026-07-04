@@ -61,8 +61,11 @@ export function useBoardState(paired: boolean) {
 }
 
 // Fetches calendar events for a date range, cached per range for 5 minutes.
+// `issues` carries any per-calendar problems (expired sign-in, Google errors)
+// so the calendar card can explain an empty state instead of guessing.
 export function useEvents(fromISO: string, toISO: string, enabled: boolean) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [issues, setIssues] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const cache = useRef(new Map<string, { at: number; events: CalendarEvent[] }>());
 
@@ -72,6 +75,7 @@ export function useEvents(fromISO: string, toISO: string, enabled: boolean) {
     const hit = cache.current.get(key);
     if (hit && Date.now() - hit.at < 5 * 60 * 1000) {
       setEvents(hit.events);
+      setIssues([]);
       return;
     }
     let cancelled = false;
@@ -80,10 +84,12 @@ export function useEvents(fromISO: string, toISO: string, enabled: boolean) {
       .then(async (res) => {
         if (!res.ok) return;
         const data = await res.json();
-        if (!cancelled) {
-          cache.current.set(key, { at: Date.now(), events: data.events });
-          setEvents(data.events);
-        }
+        if (cancelled) return;
+        const list: string[] = data.issues ?? [];
+        setIssues(list);
+        setEvents(data.events);
+        // Only cache clean results so a transient failure isn't pinned for 5 min.
+        if (list.length === 0) cache.current.set(key, { at: Date.now(), events: data.events });
       })
       .catch(() => {})
       .finally(() => !cancelled && setLoading(false));
@@ -92,7 +98,7 @@ export function useEvents(fromISO: string, toISO: string, enabled: boolean) {
     };
   }, [fromISO, toISO, enabled]);
 
-  return { events, loading };
+  return { events, issues, loading };
 }
 
 // Milliseconds since the last touch anywhere on the board.
