@@ -10,11 +10,13 @@ import { RewardsView } from "@/components/board/RewardsView";
 import { Screensaver } from "@/components/board/Screensaver";
 import {
   clearBoardToken,
+  getBoardScale,
   getBoardToken,
+  setBoardScale,
   useBoardState,
   useIdle,
 } from "@/components/board/useBoard";
-import { DEFAULT_SCALE, sanitizeLayout } from "@/lib/boardLayout";
+import { DEFAULT_SCALE, clampScale } from "@/lib/boardLayout";
 
 type View =
   | { name: "dashboard" }
@@ -38,12 +40,19 @@ export default function BoardPage() {
   // whole UI up from the browser's default 16px root. Every board style is
   // rem/em-based, so this zooms text, icons and spacing together while the
   // flex/grid layout re-fits itself (a CSS transform would overflow instead).
-  // The chosen size lives in board_layout; Customize mode adjusts it live via
-  // setScale. Pull the saved value in whenever it changes (but not mid-edit).
+  // The size is a per-device preference set from the on-screen A−/A+ control
+  // (no PIN) and remembered in this board's localStorage across reboots.
   const [scale, setScale] = useState(DEFAULT_SCALE);
   useEffect(() => {
-    if (!editMode && state) setScale(sanitizeLayout(state.family.board_layout).scale);
-  }, [state, editMode]);
+    const saved = getBoardScale();
+    if (saved) setScale(clampScale(saved));
+  }, []);
+
+  const changeScale = useCallback((n: number) => {
+    const clamped = clampScale(n);
+    setScale(clamped);
+    setBoardScale(clamped);
+  }, []);
 
   // Apply the current scale to the document root, and reset on unmount so it
   // never leaks into the parent web app.
@@ -112,7 +121,7 @@ export default function BoardPage() {
                 editMode={editMode}
                 editPin={editPin}
                 scale={scale}
-                setScale={setScale}
+                setScale={changeScale}
                 onExitEdit={() => {
                   setEditMode(false);
                   setEditPin("");
