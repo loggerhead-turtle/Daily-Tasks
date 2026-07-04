@@ -4,7 +4,7 @@ import type { BoardState } from "@/lib/types";
 
 export function AnnouncementsCard({ state }: { state: BoardState }) {
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-1.5 overflow-y-auto no-scrollbar">
+    <div className="flex h-full min-h-0 flex-col space-y-1.5 board-scroll">
       {state.announcements.length === 0 && (
         <p className="rounded-2xl bg-white/50 px-3 py-2.5 font-display text-base font-bold text-slate-400">
           No news today 😌

@@ -22,7 +22,7 @@ export function MealsCard({ state }: { state: BoardState }) {
           Tonight&apos;s dinner: surprise! 🤷
         </p>
       )}
-      <div className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto no-scrollbar">
+      <div className="mt-2 min-h-0 flex-1 space-y-1 board-scroll">
         {upcoming.map((m) => (
           <div key={m.id} className="flex items-center gap-2 rounded-xl bg-white/60 px-3 py-1.5">
             <span className="w-10 text-xs font-bold uppercase text-slate-400">

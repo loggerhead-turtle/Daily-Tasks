@@ -135,7 +135,7 @@ export function ParentMode({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto no-scrollbar">
+      <div className="min-h-0 flex-1 space-y-3 board-scroll">
         {pendingChores.length === 0 && state.redemptions.length === 0 && (
           <p className="mt-16 text-center font-display text-3xl font-bold text-slate-400">
             Nothing waiting — nice work, team! 🎉

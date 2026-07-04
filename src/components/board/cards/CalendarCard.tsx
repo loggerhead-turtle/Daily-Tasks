@@ -139,7 +139,7 @@ export function CalendarCard({
 
 function DayView({ events }: { events: CalendarEvent[] }) {
   return (
-    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto no-scrollbar">
+    <div className="min-h-0 flex-1 space-y-2 board-scroll">
       {events.length === 0 && (
         <p className="mt-8 text-center font-display text-2xl font-bold text-slate-400">
           Nothing scheduled — free day! 🎈
@@ -196,7 +196,7 @@ function WeekView({
               <div className="text-[11px] font-bold uppercase">{format(day, "EEE")}</div>
               <div className="font-display text-xl font-bold leading-none">{format(day, "d")}</div>
             </div>
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto no-scrollbar">
+            <div className="min-h-0 flex-1 space-y-1 board-scroll">
               {dayEvents.map((e) => (
                 <div
                   key={e.id}
