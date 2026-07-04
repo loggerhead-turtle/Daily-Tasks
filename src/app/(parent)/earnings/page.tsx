@@ -14,6 +14,13 @@ export default function EarningsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const kids = members.filter((m) => m.role === "child");
 
+  // Ad-hoc bonus (e.g. "sold golf balls") added straight to a child's balance.
+  const [bonusMember, setBonusMember] = useState("");
+  const [bonusAmount, setBonusAmount] = useState("");
+  const [bonusReason, setBonusReason] = useState("");
+  const [bonusBusy, setBonusBusy] = useState(false);
+  const [bonusMsg, setBonusMsg] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     if (!family) return;
     const { data } = await createClient()
@@ -34,6 +41,28 @@ export default function EarningsPage() {
     const earned = rows.filter((e) => e.cents > 0).reduce((s, e) => s + e.cents, 0);
     const paid = rows.filter((e) => e.cents < 0).reduce((s, e) => s - e.cents, 0);
     return { balance, earned, paid };
+  }
+
+  async function addBonus() {
+    setBonusMsg(null);
+    const cents = Math.round(parseFloat(bonusAmount || "0") * 100);
+    if (!family || !bonusMember) return setBonusMsg("Pick a child.");
+    if (!cents || cents <= 0) return setBonusMsg("Enter a dollar amount.");
+    if (!bonusReason.trim()) return setBonusMsg("Add a reason (e.g. sold golf balls).");
+    setBonusBusy(true);
+    const { error } = await createClient().from("earnings").insert({
+      family_id: family.id,
+      member_id: bonusMember,
+      cents,
+      reason: bonusReason.trim(),
+      kind: "adjustment",
+    });
+    setBonusBusy(false);
+    if (error) return setBonusMsg(error.message);
+    setBonusAmount("");
+    setBonusReason("");
+    setBonusMsg("Added! 🎉");
+    load();
   }
 
   async function payOut(memberId: string, balance: number) {
@@ -67,6 +96,54 @@ export default function EarningsPage() {
       </header>
 
       {kids.length === 0 && <p className="text-slate-400">Add a child on the Family page first.</p>}
+
+      {/* Ad-hoc bonus */}
+      {kids.length > 0 && (
+        <div className="card space-y-3">
+          <div>
+            <p className="font-display text-lg font-bold text-slate-800">🎉 Add a bonus</p>
+            <p className="text-xs text-slate-500">
+              A one-time add to a child&apos;s balance — chores you paid for off the board, allowance,
+              selling golf balls, anything.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-4">
+            <select
+              className="input sm:col-span-1"
+              value={bonusMember}
+              onChange={(e) => setBonusMember(e.target.value)}
+            >
+              <option value="">Who?</option>
+              {kids.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input sm:col-span-1"
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="$ amount"
+              value={bonusAmount}
+              onChange={(e) => setBonusAmount(e.target.value)}
+            />
+            <input
+              className="input sm:col-span-2"
+              placeholder="Reason (e.g. sold golf balls)"
+              value={bonusReason}
+              onChange={(e) => setBonusReason(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="btn" disabled={bonusBusy} onClick={addBonus}>
+              {bonusBusy ? "Adding…" : "Add bonus"}
+            </button>
+            {bonusMsg && <span className="text-sm font-bold text-slate-500">{bonusMsg}</span>}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {kids.map((m) => {
