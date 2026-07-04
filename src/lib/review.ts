@@ -15,7 +15,7 @@ export async function applyReview(
   if (type === "chore") {
     const { data: instance } = await admin
       .from("chore_instances")
-      .select("*, chore:chores(points, title, emoji)")
+      .select("*, chore:chores(points, cents, title, emoji)")
       .eq("id", id)
       .eq("family_id", familyId)
       .eq("status", "pending")
@@ -23,6 +23,8 @@ export async function applyReview(
     if (!instance) return { ok: false, error: "Not found", status: 404 };
 
     const points = action === "approve" ? (instance.chore?.points ?? 0) : 0;
+    const cents = action === "approve" ? (instance.chore?.cents ?? 0) : 0;
+    const label = `${instance.chore?.emoji ?? ""} ${instance.chore?.title ?? "Chore"}`.trim();
     await admin
       .from("chore_instances")
       .update({
@@ -33,13 +35,26 @@ export async function applyReview(
         completed_at: action === "approve" ? instance.completed_at : null,
       })
       .eq("id", id);
-    if (action === "approve" && points > 0 && instance.member_id) {
-      await admin.from("points_ledger").insert({
-        family_id: familyId,
-        member_id: instance.member_id,
-        delta: points,
-        reason: `${instance.chore?.emoji ?? ""} ${instance.chore?.title ?? "Chore"}`.trim(),
-      });
+    if (action === "approve" && instance.member_id) {
+      if (points > 0) {
+        await admin.from("points_ledger").insert({
+          family_id: familyId,
+          member_id: instance.member_id,
+          delta: points,
+          reason: label,
+        });
+      }
+      // Real-money value earned, tracked separately from the fun points.
+      if (cents > 0) {
+        await admin.from("earnings").insert({
+          family_id: familyId,
+          member_id: instance.member_id,
+          cents,
+          reason: label,
+          kind: "chore",
+          chore_instance_id: id,
+        });
+      }
     }
     return { ok: true };
   }

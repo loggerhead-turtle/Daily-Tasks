@@ -14,6 +14,7 @@ type Draft = {
   title: string;
   emoji: string;
   points: number;
+  dollars: string; // real-money value, entered as dollars (e.g. "1.50")
   assign_type: Chore["assign_type"];
   member_id: string;
   rotation_member_ids: string[];
@@ -26,6 +27,7 @@ const emptyDraft = (memberId: string): Draft => ({
   title: "",
   emoji: "🧹",
   points: 10,
+  dollars: "",
   assign_type: "fixed",
   member_id: memberId,
   rotation_member_ids: [],
@@ -64,11 +66,13 @@ export default function ChoresPage() {
     if (draft.recurrence === "weekly" && draft.days_of_week.length === 0)
       return setError("Pick at least one day of the week");
 
+    const cents = Math.max(0, Math.round(parseFloat(draft.dollars || "0") * 100)) || 0;
     const { error } = await createClient().from("chores").insert({
       family_id: family.id,
       title: draft.title.trim(),
       emoji: draft.emoji,
       points: draft.points,
+      cents,
       assign_type: draft.assign_type,
       member_id: draft.assign_type === "fixed" ? draft.member_id : null,
       rotation_member_ids: draft.assign_type === "rotation" ? draft.rotation_member_ids : [],
@@ -130,8 +134,8 @@ export default function ChoresPage() {
 
       {draft && (
         <div className="card space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+            <div className="md:col-span-2">
               <label className="label">Chore</label>
               <input
                 className="input"
@@ -149,6 +153,18 @@ export default function ChoresPage() {
                 max={999}
                 value={draft.points}
                 onChange={(e) => setDraft({ ...draft, points: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="label">Pays ($)</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                step="0.25"
+                placeholder="0.00"
+                value={draft.dollars}
+                onChange={(e) => setDraft({ ...draft, dollars: e.target.value })}
               />
             </div>
           </div>
@@ -315,6 +331,11 @@ export default function ChoresPage() {
             <div className="flex-1">
               <p className="font-bold text-slate-800">
                 {c.title} <span className="ml-1 text-xs font-bold text-amber-600">+{c.points} pts</span>
+                {c.cents > 0 && (
+                  <span className="ml-1 text-xs font-bold text-emerald-600">
+                    ${(c.cents / 100).toFixed(2)}
+                  </span>
+                )}
               </p>
               <p className="text-xs text-slate-500">{describe(c)}</p>
             </div>
