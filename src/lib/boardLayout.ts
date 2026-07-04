@@ -9,7 +9,20 @@ export type BoardLayout = {
   order: CardId[]; // visible cards, in grid order
   sizes: Record<CardId, CardSize>;
   hidden: CardId[];
+  scale: number; // overall board zoom (root font multiplier), e.g. 2 = 200%
 };
+
+// How big the whole board renders. It's a wall display read from across the
+// room, so it starts at 2× and is tunable in the PIN-gated Customize mode.
+export const MIN_SCALE = 1.25;
+export const MAX_SCALE = 3;
+export const SCALE_STEP = 0.25;
+export const DEFAULT_SCALE = 2;
+
+export function clampScale(n: unknown): number {
+  const v = typeof n === "number" && Number.isFinite(n) ? n : DEFAULT_SCALE;
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(v / SCALE_STEP) * SCALE_STEP));
+}
 
 export const ALL_CARDS: CardId[] = ["chores", "calendar", "meals", "announcements"];
 
@@ -25,6 +38,7 @@ export const DEFAULT_LAYOUT: BoardLayout = {
   order: ["chores", "calendar", "meals", "announcements"],
   sizes: { chores: "md", calendar: "lg", meals: "sm", announcements: "sm" },
   hidden: [],
+  scale: DEFAULT_SCALE,
 };
 
 const SIZES: CardSize[] = ["sm", "md", "lg"];
@@ -50,13 +64,15 @@ export function sanitizeLayout(input: unknown): BoardLayout {
   for (const id of ALL_CARDS) {
     if (!order.includes(id) && !hidden.includes(id)) order.push(id);
   }
+  const scale = clampScale((raw as { scale?: unknown }).scale);
+
   // Nothing visible is a broken board — fall back to the default order.
-  if (order.length === 0) return { ...DEFAULT_LAYOUT, hidden: [] };
+  if (order.length === 0) return { ...DEFAULT_LAYOUT, hidden: [], scale };
 
   const sizes = {} as Record<CardId, CardSize>;
   for (const id of ALL_CARDS) {
     const s = raw.sizes?.[id];
     sizes[id] = s === "sm" || s === "md" || s === "lg" ? s : DEFAULT_LAYOUT.sizes[id];
   }
-  return { order, sizes, hidden };
+  return { order, sizes, hidden, scale };
 }

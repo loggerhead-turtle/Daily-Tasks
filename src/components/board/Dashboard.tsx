@@ -7,6 +7,10 @@ import {
   type BoardLayout,
   type CardId,
   CARD_META,
+  MAX_SCALE,
+  MIN_SCALE,
+  SCALE_STEP,
+  clampScale,
   nextSize,
   sanitizeLayout,
 } from "@/lib/boardLayout";
@@ -31,6 +35,8 @@ export function Dashboard({
   refresh,
   editMode,
   editPin,
+  scale,
+  setScale,
   onExitEdit,
   onOpenRewards,
 }: {
@@ -38,6 +44,8 @@ export function Dashboard({
   refresh: () => void;
   editMode: boolean;
   editPin: string;
+  scale: number;
+  setScale: (n: number) => void;
   onExitEdit: () => void;
   onOpenRewards: (memberId: string | null) => void;
 }) {
@@ -94,7 +102,7 @@ export function Dashboard({
     await boardFetch("/api/board/layout", {
       method: "POST",
       pin: editPin,
-      body: JSON.stringify({ layout }),
+      body: JSON.stringify({ layout: { ...layout, scale } }),
     });
     setSaving(false);
     await refresh();
@@ -103,6 +111,8 @@ export function Dashboard({
 
   function cancel() {
     setLayout(sanitizeLayout(state.family.board_layout));
+    // Drop the live preview back to the saved size.
+    setScale(sanitizeLayout(state.family.board_layout).scale);
     onExitEdit();
   }
 
@@ -229,6 +239,30 @@ export function Dashboard({
           <span className="mr-1 font-display text-base font-bold text-white">
             Drag cards onto each other to swap
           </span>
+
+          {/* Live board size — changes apply instantly, saved with the layout */}
+          <div className="flex items-center gap-1.5 rounded-full bg-slate-700 px-2 py-1">
+            <button
+              onClick={() => setScale(clampScale(scale - SCALE_STEP))}
+              disabled={scale <= MIN_SCALE}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-lg font-bold text-slate-700 shadow transition active:scale-90 disabled:opacity-40"
+              aria-label="Smaller text"
+            >
+              A−
+            </button>
+            <span className="min-w-[3.5rem] text-center font-display text-sm font-bold text-white">
+              Size {Math.round(scale * 100)}%
+            </span>
+            <button
+              onClick={() => setScale(clampScale(scale + SCALE_STEP))}
+              disabled={scale >= MAX_SCALE}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-xl font-bold text-slate-700 shadow transition active:scale-90 disabled:opacity-40"
+              aria-label="Bigger text"
+            >
+              A+
+            </button>
+          </div>
+
           {layout.hidden.map((id) => (
             <button
               key={id}
