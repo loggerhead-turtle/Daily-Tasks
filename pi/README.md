@@ -20,9 +20,12 @@ Turns a Raspberry Pi 5 + touchscreen into the kitchen board.
    ```bash
    git clone https://github.com/loggerhead-turtle/daily-tasks.git
    cd daily-tasks/pi
-   sudo bash setup-kiosk.sh https://your-app.onrender.com
+   sudo bash setup-kiosk.sh https://your-board-url https://your-project.supabase.co
    sudo reboot
    ```
+
+   The 2nd argument is your Supabase project URL (`NEXT_PUBLIC_SUPABASE_URL`) — it
+   lets the kiosk load avatars and screensaver photos, which are otherwise blocked.
 
 3. The Pi boots into the pairing screen. On your phone, open the parent site →
    **Settings → Pair the kitchen board**, generate a code, and type it on the Pi. Done.
