@@ -355,11 +355,12 @@ function CalendarPage({ state, selected }: { state: BoardState; selected: Select
 // Google-style agenda: upcoming week, events listed under each day.
 function Agenda({ selected }: { selected: Selected }) {
   const drag = useDragScroll();
+  const AGENDA_DAYS = 28; // 4 weeks
   const from = startOfDay(new Date());
-  const to = addDays(from, 8);
+  const to = addDays(from, AGENDA_DAYS + 1);
   const { events, loading } = useEvents(from.toISOString(), to.toISOString(), true);
   const visible = events.filter((e) => selected === "all" || e.memberId === selected);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
+  const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDays(from, i));
 
   return (
     <div className="flex h-full flex-col">
