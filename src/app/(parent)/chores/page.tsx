@@ -26,7 +26,7 @@ type Draft = {
 const emptyDraft = (memberId: string): Draft => ({
   title: "",
   emoji: "🧹",
-  points: 10,
+  points: 0,
   dollars: "",
   assign_type: "fixed",
   member_id: memberId,
@@ -149,7 +149,7 @@ export default function ChoresPage() {
               <input
                 className="input"
                 type="number"
-                min={1}
+                min={0}
                 max={999}
                 value={draft.points}
                 onChange={(e) => setDraft({ ...draft, points: Number(e.target.value) })}
@@ -262,7 +262,7 @@ export default function ChoresPage() {
               {(
                 [
                   ["daily", "Every day"],
-                  ["weekly", "Certain days"],
+                  ["weekly", "Weekly — pick days"],
                   ["once", "One time"],
                 ] as const
               ).map(([value, label]) => (
