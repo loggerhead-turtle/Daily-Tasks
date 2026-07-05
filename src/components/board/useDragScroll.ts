@@ -7,9 +7,10 @@ import { useRef } from "react";
 // "touch" and only drive it for mouse/pen (which is how many kiosk panels and
 // desktops report input). A small move threshold distinguishes a drag from a
 // tap, and clicks are cancelled after a drag so dragging never fires a button.
-export function useDragScroll() {
+export function useDragScroll(axis: "x" | "y" = "y") {
   const ref = useRef<HTMLDivElement>(null);
-  const drag = useRef({ active: false, startY: 0, startTop: 0, moved: false });
+  const drag = useRef({ active: false, start: 0, startScroll: 0, moved: false });
+  const client = (e: React.PointerEvent<HTMLDivElement>) => (axis === "x" ? e.clientX : e.clientY);
 
   return {
     ref,
@@ -22,14 +23,19 @@ export function useDragScroll() {
       // retargets the pointer-up to this container, which stops clicks on
       // buttons inside from firing (e.g. "Claim"). We only capture once an
       // actual drag begins (past the threshold, in onPointerMove).
-      drag.current = { active: true, startY: e.clientY, startTop: el.scrollTop, moved: false };
+      drag.current = {
+        active: true,
+        start: client(e),
+        startScroll: axis === "x" ? el.scrollLeft : el.scrollTop,
+        moved: false,
+      };
     },
     onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
       if (!drag.current.active) return;
       const el = ref.current;
       if (!el) return;
-      const dy = e.clientY - drag.current.startY;
-      if (!drag.current.moved && Math.abs(dy) > 5) {
+      const delta = client(e) - drag.current.start;
+      if (!drag.current.moved && Math.abs(delta) > 5) {
         drag.current.moved = true;
         try {
           el.setPointerCapture(e.pointerId); // now it's a real drag — capture it
@@ -37,7 +43,10 @@ export function useDragScroll() {
           // ignore; scrolling still works while the pointer stays over the list
         }
       }
-      if (drag.current.moved) el.scrollTop = drag.current.startTop - dy;
+      if (drag.current.moved) {
+        if (axis === "x") el.scrollLeft = drag.current.startScroll - delta;
+        else el.scrollTop = drag.current.startScroll - delta;
+      }
     },
     onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
       drag.current.active = false;

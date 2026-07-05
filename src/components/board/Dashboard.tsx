@@ -14,6 +14,7 @@ import {
   sanitizeLayout,
 } from "@/lib/boardLayout";
 import { boardFetch } from "./useBoard";
+import { useDragScroll } from "./useDragScroll";
 import { BigAvatar, Clock, WeatherWidget } from "./bits";
 import { CalendarCard } from "./cards/CalendarCard";
 import { ChoresCard } from "./cards/ChoresCard";
@@ -52,6 +53,7 @@ export function Dashboard({
   const [layout, setLayout] = useState<BoardLayout>(() => sanitizeLayout(state.family.board_layout));
   const [saving, setSaving] = useState(false);
   const cardRefs = useRef(new Map<CardId, HTMLDivElement>());
+  const peopleScroll = useDragScroll("x");
 
   // Follow server changes, but never clobber an in-progress edit.
   useEffect(() => {
@@ -149,7 +151,10 @@ export function Dashboard({
       <header className="flex items-center gap-4">
         <Clock compact />
 
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-3 overflow-x-auto px-2 no-scrollbar">
+        <div
+          className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto px-2 no-scrollbar"
+          {...peopleScroll}
+        >
           <button
             onClick={() => setSelected("all")}
             className="flex shrink-0 flex-col items-center transition active:scale-95"
