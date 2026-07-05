@@ -13,12 +13,10 @@ export function ParentMode({
   state,
   onHome,
   refresh,
-  onCustomize,
 }: {
   state: BoardState;
   onHome: () => void;
   refresh: () => void;
-  onCustomize: (pin: string) => void;
 }) {
   const [pin, setPin] = useState("");
   const [verified, setVerified] = useState(false);
@@ -124,14 +122,8 @@ export function ParentMode({
         <BackButton onClick={onHome} label="Done" />
         <h1 className="font-display text-4xl font-bold text-slate-800">👍 Approvals</h1>
         <button
-          onClick={() => onCustomize(pin)}
-          className="ml-auto rounded-full bg-violet-600 px-5 py-3 font-display text-lg font-bold text-white shadow-md transition active:scale-95"
-        >
-          🎨 Customize layout
-        </button>
-        <button
           onClick={unpair}
-          className="rounded-full bg-white/70 px-5 py-3 font-display text-lg font-bold text-slate-500 shadow-md transition active:scale-95"
+          className="ml-auto rounded-full bg-white/70 px-5 py-3 font-display text-lg font-bold text-slate-500 shadow-md transition active:scale-95"
         >
           Unpair board
         </button>

@@ -136,6 +136,7 @@ export type Weather = {
   lo: number;
   code: number;
   location: string;
+  daily?: { date: string; code: number; hi: number; lo: number }[];
 };
 
 import type { BoardLayout } from "./boardLayout";
