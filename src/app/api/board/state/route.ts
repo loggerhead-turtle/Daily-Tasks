@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authBoard } from "@/lib/boardAuth";
 import { ensureInstancesForDate } from "@/lib/choreEngine";
-import type { BoardState, Weather } from "@/lib/types";
+import type { BoardState, Earning, Weather } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +108,12 @@ export async function GET(req: NextRequest) {
       .limit(50),
     // May not exist until migration 0003 is run — errors resolve to null and
     // simply show $0, so the board keeps working either way.
-    admin.from("earnings").select("member_id, cents").eq("family_id", familyId),
+    admin
+      .from("earnings")
+      .select("*")
+      .eq("family_id", familyId)
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
 
   if (!family) return NextResponse.json({ error: "Family not found" }, { status: 404 });
@@ -118,9 +123,14 @@ export async function GET(req: NextRequest) {
     balances.set(row.member_id, (balances.get(row.member_id) ?? 0) + row.delta);
   }
 
-  const earningsByMember = new Map<string, number>();
+  const balCents = new Map<string, number>();
+  const earnedCents = new Map<string, number>();
+  const paidCents = new Map<string, number>();
   for (const row of earnings ?? []) {
-    earningsByMember.set(row.member_id, (earningsByMember.get(row.member_id) ?? 0) + row.cents);
+    balCents.set(row.member_id, (balCents.get(row.member_id) ?? 0) + row.cents);
+    if (row.cents > 0)
+      earnedCents.set(row.member_id, (earnedCents.get(row.member_id) ?? 0) + row.cents);
+    else paidCents.set(row.member_id, (paidCents.get(row.member_id) ?? 0) - row.cents);
   }
 
   const pendingCount =
@@ -138,7 +148,9 @@ export async function GET(req: NextRequest) {
     members: (members ?? []).map((m) => ({
       ...m,
       balance: balances.get(m.id) ?? 0,
-      earningsCents: earningsByMember.get(m.id) ?? 0,
+      earningsCents: balCents.get(m.id) ?? 0,
+      earnedCents: earnedCents.get(m.id) ?? 0,
+      paidCents: paidCents.get(m.id) ?? 0,
     })),
     chores: instances ?? [],
     rewards: rewards ?? [],
@@ -147,6 +159,7 @@ export async function GET(req: NextRequest) {
     announcements: announcements ?? [],
     weather: await getWeather(family.weather_lat, family.weather_lon, family.weather_location),
     photos: (photos ?? []).map((p) => p.url),
+    earnings: (earnings as Earning[] | null) ?? [],
     pendingCount,
   };
 
