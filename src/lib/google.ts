@@ -71,9 +71,11 @@ export async function fetchCalendarList(accessToken: string) {
 // persisting) it when expired.
 export async function getAccessToken(
   admin: SupabaseClient,
-  conn: GoogleConnection
+  conn: GoogleConnection,
+  force = false // ignore the cached token and refresh anyway
 ): Promise<string> {
   if (
+    !force &&
     conn.access_token &&
     conn.access_token_expires &&
     new Date(conn.access_token_expires).getTime() > Date.now() + 60_000
@@ -140,7 +142,6 @@ export async function fetchFamilyEvents(
       if (!conn) return [];
       if (!tokenCache.has(conn.id)) tokenCache.set(conn.id, getAccessToken(admin, conn));
       try {
-        const token = await tokenCache.get(conn.id)!;
         const params = new URLSearchParams({
           timeMin,
           timeMax,
@@ -148,17 +149,29 @@ export async function fetchFamilyEvents(
           orderBy: "startTime",
           maxResults: "100",
         });
-        const res = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-            link.google_calendar_id
-          )}/events?${params}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+          link.google_calendar_id
+        )}/events?${params}`;
+
+        let token = await tokenCache.get(conn.id)!;
+        let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        // A cached access token can be rejected (revoked/stale) even if we
+        // thought it was still valid — force one refresh and retry before
+        // giving up, so a stale token self-heals without a manual reconnect.
+        if (res.status === 401 || res.status === 403) {
+          token = await getAccessToken(admin, conn, true);
+          tokenCache.set(conn.id, Promise.resolve(token));
+          res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        }
         if (!res.ok) {
           const body = await res.text();
           const msg = `Google Calendar "${link.label}" (${conn.google_email}) returned ${res.status}: ${body.slice(0, 300)}`;
           console.error(msg);
-          issues.push(`Couldn't load "${link.label}" (Google returned ${res.status}).`);
+          issues.push(
+            res.status === 401 || res.status === 403
+              ? `${conn.google_email}'s Google sign-in needs reconnecting — open the Calendars page and reconnect it.`
+              : `Couldn't load "${link.label}" (Google returned ${res.status}).`
+          );
           return [];
         }
         const data = (await res.json()) as { items?: GoogleEvent[] };
