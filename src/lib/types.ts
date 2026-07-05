@@ -150,7 +150,12 @@ export type BoardState = {
     has_pin: boolean;
     board_layout: BoardLayout | null;
   };
-  members: (Member & { balance: number; earningsCents: number })[];
+  members: (Member & {
+    balance: number; // points
+    earningsCents: number; // unpaid $ balance
+    earnedCents: number; // total $ ever earned
+    paidCents: number; // total $ paid out
+  })[];
   chores: ChoreInstance[];
   rewards: Reward[];
   redemptions: Redemption[];
@@ -158,5 +163,6 @@ export type BoardState = {
   announcements: Announcement[];
   weather: Weather | null;
   photos: string[];
+  earnings: Earning[]; // recent money activity, newest first
   pendingCount: number;
 };
