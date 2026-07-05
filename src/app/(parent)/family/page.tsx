@@ -27,6 +27,33 @@ export default function FamilyPage() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Add-a-co-parent form (creates a pre-confirmed account, no email needed).
+  const [addParent, setAddParent] = useState(false);
+  const [coName, setCoName] = useState("");
+  const [coEmail, setCoEmail] = useState("");
+  const [coPassword, setCoPassword] = useState("");
+  const [coBusy, setCoBusy] = useState(false);
+  const [coMsg, setCoMsg] = useState<string | null>(null);
+
+  async function addCoParent() {
+    setCoMsg(null);
+    setCoBusy(true);
+    const res = await fetch("/api/parent/co-parent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: coName.trim(), email: coEmail.trim(), password: coPassword }),
+    });
+    setCoBusy(false);
+    if (!res.ok) {
+      setCoMsg((await res.json().catch(() => ({}))).error ?? "Couldn't add them");
+      return;
+    }
+    setCoMsg(`Done! ${coName.trim()} can sign in now with that email & password.`);
+    setCoName("");
+    setCoEmail("");
+    setCoPassword("");
+  }
+
   const loadLogins = useCallback(async () => {
     const res = await fetch("/api/parent/child-login");
     if (res.ok) setLogins((await res.json()).logins ?? {});
@@ -111,14 +138,75 @@ export default function FamilyPage() {
       </header>
 
       {family && (
-        <div className="card flex items-center justify-between !py-4">
-          <div>
-            <p className="text-sm font-bold text-slate-800">Invite the other parent</p>
-            <p className="text-xs text-slate-500">They sign up with this code to co-manage the family.</p>
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-800">Add the other parent</p>
+              <p className="text-xs text-slate-500">
+                Create their login here so they can sign in right away — no confirmation email needed.
+              </p>
+            </div>
+            {!addParent && (
+              <button className="btn" onClick={() => setAddParent(true)}>
+                <Plus size={16} /> Add a parent
+              </button>
+            )}
           </div>
-          <code className="rounded-lg bg-slate-100 px-3 py-1.5 font-mono text-lg font-bold tracking-widest text-violet-700">
-            {family.invite_code}
-          </code>
+
+          {addParent && (
+            <div className="rounded-xl bg-slate-50 p-3">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <input
+                  className="input"
+                  placeholder="Their name"
+                  value={coName}
+                  onChange={(e) => setCoName(e.target.value)}
+                />
+                <input
+                  className="input"
+                  type="email"
+                  autoCapitalize="none"
+                  placeholder="Their email"
+                  value={coEmail}
+                  onChange={(e) => setCoEmail(e.target.value)}
+                />
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Password (min 8 chars)"
+                  value={coPassword}
+                  onChange={(e) => setCoPassword(e.target.value)}
+                />
+              </div>
+              {coMsg && <p className="mt-2 text-xs font-bold text-slate-600">{coMsg}</p>}
+              <div className="mt-2 flex gap-2">
+                <button className="btn !py-1.5 text-xs" disabled={coBusy} onClick={addCoParent}>
+                  {coBusy ? "Adding…" : "Create parent login"}
+                </button>
+                <button
+                  className="btn-secondary !py-1.5 text-xs"
+                  onClick={() => {
+                    setAddParent(false);
+                    setCoMsg(null);
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Share that email &amp; password with them; they can change the password later.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+            <p className="text-xs text-slate-500">
+              Or share this invite code (needs email confirmation set up in Supabase):
+            </p>
+            <code className="rounded-lg bg-slate-100 px-3 py-1.5 font-mono text-sm font-bold tracking-widest text-violet-700">
+              {family.invite_code}
+            </code>
+          </div>
         </div>
       )}
 
