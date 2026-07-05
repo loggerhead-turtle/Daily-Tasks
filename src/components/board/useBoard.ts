@@ -55,7 +55,9 @@ export function useBoardState(paired: boolean) {
     if (!getBoardToken()) return;
     try {
       const date = format(new Date(), "yyyy-MM-dd");
-      const res = await boardFetch(`/api/board/state?date=${date}`);
+      // The _ cache-buster guarantees a fresh response even if some layer
+      // ignores the no-store hint, so newly added chores/bounties appear.
+      const res = await boardFetch(`/api/board/state?date=${date}&_=${Date.now()}`);
       if (res.status === 401) {
         setUnauthorized(true);
         return;
@@ -73,8 +75,16 @@ export function useBoardState(paired: boolean) {
   useEffect(() => {
     if (!paired) return;
     refresh();
-    const id = setInterval(refresh, 45_000);
-    return () => clearInterval(id);
+    const id = setInterval(refresh, 20_000);
+    // Also refresh whenever the board regains focus/visibility (e.g. waking).
+    const onWake = () => refresh();
+    window.addEventListener("focus", onWake);
+    document.addEventListener("visibilitychange", onWake);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onWake);
+      document.removeEventListener("visibilitychange", onWake);
+    };
   }, [paired, refresh]);
 
   return { state, refresh, unauthorized };

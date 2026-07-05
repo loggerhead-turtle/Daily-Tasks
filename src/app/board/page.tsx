@@ -126,7 +126,10 @@ export default function BoardPage() {
                   setEditMode(false);
                   setEditPin("");
                 }}
-                onOpenBounty={() => setView({ name: "bounty" })}
+                onOpenBounty={() => {
+                  refresh(); // pull the latest bounties the moment it opens
+                  setView({ name: "bounty" });
+                }}
               />
             )}
             {view.name === "bounty" && (
