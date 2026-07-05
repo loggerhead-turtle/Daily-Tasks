@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useFamily } from "@/components/parent/useFamily";
 import { MemberAvatar } from "@/components/parent/MemberChip";
@@ -40,8 +40,38 @@ export default function ChoresPage() {
   const { family, members, loading } = useFamily();
   const [chores, setChores] = useState<Chore[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const kids = members.filter((m) => m.role === "child");
+
+  function startNew() {
+    setEditingId(null);
+    setError(null);
+    setDraft(emptyDraft(kids[0]?.id ?? ""));
+  }
+
+  function edit(c: Chore) {
+    setEditingId(c.id);
+    setError(null);
+    setDraft({
+      title: c.title,
+      emoji: c.emoji,
+      points: c.points,
+      dollars: c.cents ? (c.cents / 100).toString() : "",
+      assign_type: c.assign_type,
+      member_id: c.member_id ?? kids[0]?.id ?? "",
+      rotation_member_ids: c.rotation_member_ids ?? [],
+      recurrence: c.recurrence,
+      days_of_week: c.days_of_week ?? [],
+      once_date: c.once_date ?? new Date().toISOString().slice(0, 10),
+    });
+  }
+
+  function closeDraft() {
+    setDraft(null);
+    setEditingId(null);
+    setError(null);
+  }
 
   const load = useCallback(async () => {
     if (!family) return;
@@ -67,8 +97,7 @@ export default function ChoresPage() {
       return setError("Pick at least one day of the week");
 
     const cents = Math.max(0, Math.round(parseFloat(draft.dollars || "0") * 100)) || 0;
-    const { error } = await createClient().from("chores").insert({
-      family_id: family.id,
+    const payload = {
       title: draft.title.trim(),
       emoji: draft.emoji,
       points: draft.points,
@@ -79,9 +108,12 @@ export default function ChoresPage() {
       recurrence: draft.recurrence,
       days_of_week: draft.recurrence === "weekly" ? draft.days_of_week : [],
       once_date: draft.recurrence === "once" ? draft.once_date : null,
-    });
+    };
+    const { error } = editingId
+      ? await createClient().from("chores").update(payload).eq("id", editingId)
+      : await createClient().from("chores").insert({ family_id: family.id, ...payload });
     if (error) return setError(error.message);
-    setDraft(null);
+    closeDraft();
     load();
   }
 
@@ -122,7 +154,7 @@ export default function ChoresPage() {
           <p className="text-sm text-slate-500">They appear on the board automatically on their scheduled days.</p>
         </div>
         {!draft && kids.length > 0 && (
-          <button className="btn" onClick={() => setDraft(emptyDraft(kids[0].id))}>
+          <button className="btn" onClick={startNew}>
             <Plus size={16} /> New chore
           </button>
         )}
@@ -134,6 +166,9 @@ export default function ChoresPage() {
 
       {draft && (
         <div className="card space-y-4">
+          <p className="font-display text-lg font-bold text-slate-800">
+            {editingId ? "Edit chore" : "New chore"}
+          </p>
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
             <div className="md:col-span-2">
               <label className="label">Chore</label>
@@ -318,8 +353,10 @@ export default function ChoresPage() {
 
           {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
           <div className="flex gap-2">
-            <button className="btn" onClick={save}>Save chore</button>
-            <button className="btn-secondary" onClick={() => setDraft(null)}>Cancel</button>
+            <button className="btn" onClick={save}>
+              {editingId ? "Update chore" : "Save chore"}
+            </button>
+            <button className="btn-secondary" onClick={closeDraft}>Cancel</button>
           </div>
         </div>
       )}
@@ -343,8 +380,16 @@ export default function ChoresPage() {
               {c.active ? "Pause" : "Resume"}
             </button>
             <button
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-violet-50 hover:text-violet-600"
+              onClick={() => edit(c)}
+              aria-label={`Edit ${c.title}`}
+            >
+              <Pencil size={18} />
+            </button>
+            <button
               className="rounded-xl p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
               onClick={() => remove(c)}
+              aria-label={`Delete ${c.title}`}
             >
               <Trash2 size={18} />
             </button>
