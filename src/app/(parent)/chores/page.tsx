@@ -109,10 +109,25 @@ export default function ChoresPage() {
       days_of_week: draft.recurrence === "weekly" ? draft.days_of_week : [],
       once_date: draft.recurrence === "once" ? draft.once_date : null,
     };
-    const { error } = editingId
-      ? await createClient().from("chores").update(payload).eq("id", editingId)
-      : await createClient().from("chores").insert({ family_id: family.id, ...payload });
-    if (error) return setError(error.message);
+    if (editingId) {
+      const { error } = await createClient().from("chores").update(payload).eq("id", editingId);
+      if (error) return setError(error.message);
+    } else {
+      const { data: created, error } = await createClient()
+        .from("chores")
+        .insert({ family_id: family.id, ...payload })
+        .select("id")
+        .single();
+      if (error) return setError(error.message);
+      // Notify the kids' phones about the new chore/bounty (best-effort).
+      if (created?.id) {
+        fetch("/api/notify/chore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ choreId: created.id }),
+        }).catch(() => {});
+      }
+    }
     closeDraft();
     load();
   }

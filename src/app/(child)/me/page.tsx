@@ -3,11 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
-import { Camera, LogOut } from "lucide-react";
+import { Bell, BellOff, Camera, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { CalendarEvent, ChoreInstance, Earning } from "@/lib/types";
 
 type Note = { id: string; icon: string; text: string; when: string };
+
+// Convert the VAPID public key (base64url) to the Uint8Array the Push API needs.
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+type PushState = "loading" | "unsupported" | "off" | "on" | "denied" | "busy";
 
 type ChildState = {
   member: { id: string; name: string; color: string; emoji: string; avatar_url: string | null };
@@ -30,6 +42,75 @@ export default function ChildPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [push, setPush] = useState<PushState>("loading");
+
+  const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const pushSupported =
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    !!VAPID;
+
+  useEffect(() => {
+    if (!pushSupported) {
+      setPush("unsupported");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setPush("denied");
+      return;
+    }
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => reg?.pushManager.getSubscription())
+      .then((sub) => setPush(sub ? "on" : "off"))
+      .catch(() => setPush("off"));
+  }, [pushSupported]);
+
+  async function enablePush() {
+    if (!VAPID) return;
+    setPush("busy");
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        setPush(perm === "denied" ? "denied" : "off");
+        return;
+      }
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID) as unknown as BufferSource,
+      });
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+      setPush(res.ok ? "on" : "off");
+    } catch {
+      setPush("off");
+    }
+  }
+
+  async function disablePush() {
+    setPush("busy");
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await fetch("/api/push/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setPush("off");
+    } catch {
+      setPush("off");
+    }
+  }
 
   const load = useCallback(async () => {
     const date = new Date().toISOString().slice(0, 10);
@@ -137,6 +218,25 @@ export default function ChildPage() {
             <p className="font-display text-2xl font-bold text-slate-800">Hi, {member.name}!</p>
             <p className="text-sm font-bold text-slate-500">⭐ {state.points} points</p>
           </div>
+          {push !== "unsupported" && (
+            <button
+              onClick={push === "on" ? disablePush : enablePush}
+              disabled={push === "busy" || push === "loading" || push === "denied"}
+              className={`rounded-full p-2.5 shadow transition active:scale-90 disabled:opacity-50 ${
+                push === "on" ? "bg-violet-600 text-white" : "bg-white/70 text-slate-500"
+              }`}
+              aria-label={push === "on" ? "Turn off notifications" : "Turn on notifications"}
+              title={
+                push === "denied"
+                  ? "Notifications are blocked in your phone's settings"
+                  : push === "on"
+                    ? "Notifications on — tap to turn off"
+                    : "Turn on notifications"
+              }
+            >
+              {push === "on" ? <Bell size={18} /> : <BellOff size={18} />}
+            </button>
+          )}
           <button
             onClick={signOut}
             className="rounded-full bg-white/70 p-2.5 text-slate-500 shadow transition active:scale-90"
