@@ -6,7 +6,6 @@ import { Blobs } from "@/components/board/bits";
 import { Dashboard } from "@/components/board/Dashboard";
 import { Pairing } from "@/components/board/Pairing";
 import { ParentMode } from "@/components/board/ParentMode";
-import { BountyView } from "@/components/board/BountyView";
 import { Screensaver } from "@/components/board/Screensaver";
 import {
   clearBoardToken,
@@ -18,17 +17,12 @@ import {
 } from "@/components/board/useBoard";
 import { DEFAULT_SCALE, clampScale } from "@/lib/boardLayout";
 
-type View =
-  | { name: "dashboard" }
-  | { name: "bounty" }
-  | { name: "parent" };
+type View = { name: "dashboard" } | { name: "parent" };
 
 export default function BoardPage() {
   const [paired, setPaired] = useState<boolean | null>(null);
   const [view, setView] = useState<View>({ name: "dashboard" });
   const [asleep, setAsleep] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [editPin, setEditPin] = useState("");
 
   useEffect(() => {
     setPaired(!!getBoardToken());
@@ -115,40 +109,13 @@ export default function BoardPage() {
             className="relative h-full"
           >
             {view.name === "dashboard" && (
-              <Dashboard
-                state={state}
-                refresh={refresh}
-                editMode={editMode}
-                editPin={editPin}
-                scale={scale}
-                setScale={changeScale}
-                onExitEdit={() => {
-                  setEditMode(false);
-                  setEditPin("");
-                }}
-                onOpenBounty={() => {
-                  refresh(); // pull the latest bounties the moment it opens
-                  setView({ name: "bounty" });
-                }}
-              />
-            )}
-            {view.name === "bounty" && (
-              <BountyView
-                state={state}
-                onHome={() => setView({ name: "dashboard" })}
-                refresh={refresh}
-              />
+              <Dashboard state={state} refresh={refresh} scale={scale} setScale={changeScale} />
             )}
             {view.name === "parent" && (
               <ParentMode
                 state={state}
                 onHome={() => setView({ name: "dashboard" })}
                 refresh={refresh}
-                onCustomize={(pin) => {
-                  setEditPin(pin);
-                  setEditMode(true);
-                  setView({ name: "dashboard" });
-                }}
               />
             )}
           </motion.div>
@@ -156,7 +123,7 @@ export default function BoardPage() {
       )}
 
       {/* Refresh + discreet parent-mode gear with a pending badge */}
-      {state && !editMode && (
+      {state && (
         <div className="absolute bottom-4 right-4 z-30 flex items-center gap-2">
           <button
             onClick={() => window.location.reload()}

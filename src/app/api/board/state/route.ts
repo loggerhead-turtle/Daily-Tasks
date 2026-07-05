@@ -19,18 +19,26 @@ async function getWeather(
   try {
     const res = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-        `&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min` +
-        `&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`,
+        `&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code` +
+        `&temperature_unit=fahrenheit&timezone=auto&forecast_days=7`,
       { signal: AbortSignal.timeout(5000) }
     );
     if (!res.ok) return cached?.weather ?? null;
     const data = await res.json();
+    const d = data.daily;
+    const daily = (d?.time ?? []).map((date: string, i: number) => ({
+      date,
+      code: d.weather_code[i],
+      hi: Math.round(d.temperature_2m_max[i]),
+      lo: Math.round(d.temperature_2m_min[i]),
+    }));
     const weather: Weather = {
       temp: Math.round(data.current.temperature_2m),
       hi: Math.round(data.daily.temperature_2m_max[0]),
       lo: Math.round(data.daily.temperature_2m_min[0]),
       code: data.current.weather_code,
       location: location ?? "",
+      daily,
     };
     weatherCache.set(key, { at: Date.now(), weather });
     return weather;
