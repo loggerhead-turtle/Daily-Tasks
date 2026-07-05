@@ -142,5 +142,5 @@ export async function GET(req: NextRequest) {
     pendingCount,
   };
 
-  return NextResponse.json(state);
+  return NextResponse.json(state, { headers: { "Cache-Control": "no-store" } });
 }
