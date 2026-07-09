@@ -106,7 +106,12 @@ export function Dashboard({
             {page === "calendar" && <CalendarPage state={state} selected={selected} />}
             {page === "earnings" && <EarningsBoard state={state} selected={selected} />}
             {page === "bounty" && (
-              <BountyView state={state} refresh={refresh} onHome={() => setPage("chores")} />
+              <BountyView
+                state={state}
+                refresh={refresh}
+                selected={selected}
+                onHome={() => setPage("chores")}
+              />
             )}
             {page === "dinner" && (
               <PageShell title="🍽️ Dinner">

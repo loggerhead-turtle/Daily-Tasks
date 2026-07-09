@@ -15,22 +15,49 @@ export function BountyView({
   state,
   onHome,
   refresh,
+  selected,
 }: {
   state: BoardState;
   onHome: () => void;
   refresh: () => void;
+  selected: "all" | string;
 }) {
   const kids = state.members.filter((m) => m.role === "child");
   const memberById = new Map(state.members.map((m) => [m.id, m]));
   const bounties = state.chores.filter((c) => c.chore?.assign_type === "grab");
   const available = bounties.filter((c) => c.member_id === null && c.status === "todo");
   const claimed = bounties.filter((c) => !(c.member_id === null && c.status === "todo"));
+  const selectedKid = kids.find((k) => k.id === selected) ?? null;
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [pickKid, setPickKid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const drag = useDragScroll();
+
+  // Propose-a-bounty form
+  const [proposing, setProposing] = useState(false);
+  const [propTitle, setPropTitle] = useState("");
+  const [propDollars, setPropDollars] = useState("");
+  const [propBusy, setPropBusy] = useState(false);
+
+  async function propose() {
+    if (!selectedKid || !propTitle.trim()) return;
+    setPropBusy(true);
+    const cents = Math.max(0, Math.round(parseFloat(propDollars || "0") * 100)) || 0;
+    const res = await boardFetch("/api/board/propose-bounty", {
+      method: "POST",
+      body: JSON.stringify({ memberId: selectedKid.id, title: propTitle.trim(), cents }),
+    });
+    setPropBusy(false);
+    setProposing(false);
+    setPropTitle("");
+    setPropDollars("");
+    setToast(
+      res.ok ? `Sent to a parent to approve, ${selectedKid.name}! 🙌` : "Couldn't send it — try again."
+    );
+    setTimeout(() => setToast(null), 3500);
+  }
 
   function openBounty(id: string) {
     setOpenId(openId === id ? null : id);
@@ -71,7 +98,63 @@ export function BountyView({
         <span className="ml-auto font-display text-xl font-bold text-slate-400">
           {available.length} up for grabs
         </span>
+        <button
+          onClick={() => {
+            if (!selectedKid) {
+              setToast("Tap your face up top first, then suggest a bounty!");
+              setTimeout(() => setToast(null), 3500);
+              return;
+            }
+            setProposing((p) => !p);
+          }}
+          className="rounded-full bg-emerald-500 px-5 py-3 font-display text-xl font-bold text-white shadow transition active:scale-95"
+        >
+          💪 Suggest a bounty
+        </button>
       </header>
+
+      {proposing && selectedKid && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-3xl bg-white/85 p-4 shadow-md backdrop-blur"
+        >
+          <p className="mb-2 font-display text-xl font-bold text-slate-800">
+            {selectedKid.name}, what job should we add?
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              autoFocus
+              className="min-w-[16rem] flex-1 rounded-2xl border-2 border-slate-200 px-4 py-3 font-display text-xl font-bold text-slate-800 outline-none focus:border-violet-400"
+              placeholder="e.g. Wash the car"
+              value={propTitle}
+              onChange={(e) => setPropTitle(e.target.value)}
+            />
+            <div className="flex items-center gap-2">
+              <span className="font-display text-xl font-bold text-slate-500">$</span>
+              <input
+                className="w-28 rounded-2xl border-2 border-slate-200 px-4 py-3 font-display text-xl font-bold text-slate-800 outline-none focus:border-violet-400"
+                type="number"
+                min={0}
+                step="0.25"
+                placeholder="price"
+                value={propDollars}
+                onChange={(e) => setPropDollars(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={propose}
+              disabled={propBusy || !propTitle.trim()}
+              className="rounded-2xl bg-violet-600 px-6 py-3 font-display text-xl font-bold text-white shadow transition active:scale-95 disabled:opacity-50"
+            >
+              {propBusy ? "Sending…" : "Ask a parent"}
+            </button>
+          </div>
+          <p className="mt-2 text-sm font-bold text-slate-400">
+            A parent will set the price and approve it before it shows up here.
+          </p>
+        </motion.div>
+      )}
 
       <AnimatePresence>
         {toast && (
