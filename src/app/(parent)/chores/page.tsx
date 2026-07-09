@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useFamily } from "@/components/parent/useFamily";
 import { MemberAvatar } from "@/components/parent/MemberChip";
-import type { Chore } from "@/lib/types";
+import type { BountyProposal, Chore } from "@/lib/types";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const EMOJI = ["🧹", "🛏️", "🍽️", "🐶", "🗑️", "🧺", "🪴", "🧸", "📚", "🚿", "🥗", "🚲"];
@@ -73,6 +73,9 @@ export default function ChoresPage() {
     setError(null);
   }
 
+  const [proposals, setProposals] = useState<BountyProposal[]>([]);
+  const [propPrice, setPropPrice] = useState<Record<string, string>>({});
+
   const load = useCallback(async () => {
     if (!family) return;
     const { data } = await createClient()
@@ -83,9 +86,68 @@ export default function ChoresPage() {
     setChores((data as Chore[]) ?? []);
   }, [family]);
 
+  const loadProposals = useCallback(async () => {
+    if (!family) return;
+    const { data } = await createClient()
+      .from("bounty_proposals")
+      .select("*")
+      .eq("family_id", family.id)
+      .eq("status", "pending")
+      .order("created_at");
+    const list = (data as BountyProposal[]) ?? [];
+    setProposals(list);
+    setPropPrice(Object.fromEntries(list.map((p) => [p.id, (p.cents / 100).toFixed(2)])));
+  }, [family]);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadProposals();
+  }, [load, loadProposals]);
+
+  async function acceptProposal(p: BountyProposal) {
+    if (!family) return;
+    const cents = Math.max(0, Math.round(parseFloat(propPrice[p.id] || "0") * 100)) || 0;
+    const supabase = createClient();
+    const { data: created, error } = await supabase
+      .from("chores")
+      .insert({
+        family_id: family.id,
+        title: p.title,
+        emoji: p.emoji || "💪",
+        points: 0,
+        cents,
+        assign_type: "grab",
+        member_id: null,
+        rotation_member_ids: [],
+        recurrence: "once",
+        days_of_week: [],
+        once_date: new Date().toISOString().slice(0, 10),
+      })
+      .select("id")
+      .single();
+    if (error) return setError(error.message);
+    await supabase
+      .from("bounty_proposals")
+      .update({ status: "accepted", reviewed_at: new Date().toISOString() })
+      .eq("id", p.id);
+    if (created?.id) {
+      fetch("/api/notify/chore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ choreId: created.id }),
+      }).catch(() => {});
+    }
+    loadProposals();
+    load();
+  }
+
+  async function declineProposal(p: BountyProposal) {
+    await createClient()
+      .from("bounty_proposals")
+      .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+      .eq("id", p.id);
+    loadProposals();
+  }
 
   async function save() {
     if (!family || !draft) return;
@@ -177,6 +239,58 @@ export default function ChoresPage() {
 
       {kids.length === 0 && (
         <div className="card text-sm text-slate-500">Add your kids on the Family page first.</div>
+      )}
+
+      {/* Bounty requests from the kids */}
+      {proposals.length > 0 && (
+        <div className="card space-y-3 border-2 border-emerald-200">
+          <p className="font-display text-lg font-bold text-slate-800">
+            💪 Bounty requests
+            <span className="ml-2 rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">
+              {proposals.length}
+            </span>
+          </p>
+          {proposals.map((p) => {
+            const proposer = members.find((m) => m.id === p.member_id)?.name ?? "A kid";
+            return (
+              <div key={p.id} className="rounded-xl bg-slate-50 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{p.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800">{p.title}</p>
+                    <p className="text-xs text-slate-500">
+                      from {proposer}
+                      {p.note ? ` · ${p.note}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500">Pays $</span>
+                  <input
+                    className="input !w-24"
+                    type="number"
+                    min={0}
+                    step="0.25"
+                    value={propPrice[p.id] ?? ""}
+                    onChange={(e) => setPropPrice({ ...propPrice, [p.id]: e.target.value })}
+                  />
+                  <button
+                    className="btn !py-1.5 text-xs"
+                    onClick={() => acceptProposal(p)}
+                  >
+                    <Check size={14} /> Accept as bounty
+                  </button>
+                  <button
+                    className="btn-secondary !py-1.5 text-xs"
+                    onClick={() => declineProposal(p)}
+                  >
+                    <X size={14} /> Decline
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {draft && (

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { Bell, BellOff, Camera, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { CalendarEvent, ChoreInstance, Earning } from "@/lib/types";
+import type { BountyProposal, CalendarEvent, ChoreInstance, Earning } from "@/lib/types";
 
 type Note = { id: string; icon: string; text: string; when: string };
 
@@ -31,6 +31,7 @@ type ChildState = {
   paidCents: number;
   earnings: Earning[];
   notifications: Note[];
+  proposals: BountyProposal[];
 };
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -43,6 +44,39 @@ export default function ChildPage() {
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [push, setPush] = useState<PushState>("loading");
+
+  // Propose-a-bounty form
+  const [proposing, setProposing] = useState(false);
+  const [propTitle, setPropTitle] = useState("");
+  const [propDollars, setPropDollars] = useState("");
+  const [propNote, setPropNote] = useState("");
+  const [propBusy, setPropBusy] = useState(false);
+  const [propMsg, setPropMsg] = useState<string | null>(null);
+
+  async function proposeBounty() {
+    setPropMsg(null);
+    if (!propTitle.trim()) {
+      setPropMsg("Give your bounty a name.");
+      return;
+    }
+    setPropBusy(true);
+    const cents = Math.max(0, Math.round(parseFloat(propDollars || "0") * 100)) || 0;
+    const res = await fetch("/api/child/propose-bounty", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: propTitle.trim(), cents, note: propNote.trim() }),
+    });
+    setPropBusy(false);
+    if (!res.ok) {
+      setPropMsg((await res.json().catch(() => ({}))).error ?? "Couldn't send it.");
+      return;
+    }
+    setPropTitle("");
+    setPropDollars("");
+    setPropNote("");
+    setProposing(false);
+    await load();
+  }
 
   const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const pushSupported =
@@ -325,6 +359,101 @@ export default function ChildPage() {
               <span className="text-2xl">✅</span>
             </div>
           ))}
+        </div>
+
+        {/* Propose a bounty */}
+        <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-display text-lg font-bold text-slate-700">💪 Propose a bounty</h2>
+            {!proposing && (
+              <button
+                onClick={() => setProposing(true)}
+                className="rounded-full bg-emerald-500 px-4 py-1.5 text-sm font-bold text-white shadow transition active:scale-95"
+              >
+                ＋ New idea
+              </button>
+            )}
+          </div>
+
+          {proposing && (
+            <div className="mb-3 rounded-2xl bg-white/80 p-3 shadow">
+              <p className="mb-2 text-xs font-bold text-slate-500">
+                See a job that needs doing? Suggest it and a price — a parent decides.
+              </p>
+              <input
+                className="mb-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500"
+                placeholder="e.g. Wash the car"
+                value={propTitle}
+                onChange={(e) => setPropTitle(e.target.value)}
+              />
+              <div className="mb-2 flex gap-2">
+                <input
+                  className="w-28 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500"
+                  type="number"
+                  min={0}
+                  step="0.25"
+                  placeholder="$ price"
+                  value={propDollars}
+                  onChange={(e) => setPropDollars(e.target.value)}
+                />
+                <input
+                  className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500"
+                  placeholder="Note (optional)"
+                  value={propNote}
+                  onChange={(e) => setPropNote(e.target.value)}
+                />
+              </div>
+              {propMsg && <p className="mb-2 text-xs font-bold text-rose-600">{propMsg}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={proposeBounty}
+                  disabled={propBusy}
+                  className="rounded-full bg-violet-600 px-4 py-1.5 text-sm font-bold text-white shadow transition active:scale-95 disabled:opacity-50"
+                >
+                  {propBusy ? "Sending…" : "Send to parent"}
+                </button>
+                <button
+                  onClick={() => {
+                    setProposing(false);
+                    setPropMsg(null);
+                  }}
+                  className="rounded-full bg-slate-100 px-4 py-1.5 text-sm font-bold text-slate-500 transition active:scale-95"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {state.proposals.length > 0 && (
+            <div className="space-y-1.5">
+              {state.proposals.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-2 rounded-xl bg-white/70 px-4 py-2 shadow-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-600">
+                    {p.title} {p.cents > 0 && <span className="text-emerald-600">{money(p.cents)}</span>}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                      p.status === "accepted"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : p.status === "rejected"
+                          ? "bg-slate-100 text-slate-500"
+                          : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {p.status === "accepted"
+                      ? "✅ Accepted"
+                      : p.status === "rejected"
+                        ? "Declined"
+                        : "⏳ Pending"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 3 · Money */}

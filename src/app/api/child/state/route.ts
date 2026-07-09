@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     { data: ledger },
     { data: announcements },
     { data: redemptions },
+    { data: proposals },
   ] = await Promise.all([
     admin
       .from("chore_instances")
@@ -45,6 +46,12 @@ export async function GET(req: NextRequest) {
       .from("redemptions")
       .select("*, reward:rewards(title, emoji)")
       .eq("family_id", familyId)
+      .eq("member_id", memberId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    admin
+      .from("bounty_proposals")
+      .select("*")
       .eq("member_id", memberId)
       .order("created_at", { ascending: false })
       .limit(10),
@@ -94,10 +101,28 @@ export async function GET(req: NextRequest) {
       });
     }
   }
+  for (const p of proposals ?? []) {
+    if (p.status === "accepted") {
+      notifications.push({
+        id: `prop-${p.id}`,
+        icon: "🎉",
+        text: `Your bounty was accepted: ${p.title}`,
+        when: p.reviewed_at ?? p.created_at,
+      });
+    } else if (p.status === "rejected") {
+      notifications.push({
+        id: `prop-${p.id}`,
+        icon: "🙈",
+        text: `Bounty request declined: ${p.title}`,
+        when: p.reviewed_at ?? p.created_at,
+      });
+    }
+  }
   notifications.sort((a, b) => (a.when < b.when ? 1 : -1));
 
   return NextResponse.json({
     notifications: notifications.slice(0, 8),
+    proposals: proposals ?? [],
     member: {
       id: member.id,
       name: member.name,
