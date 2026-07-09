@@ -81,6 +81,19 @@ export type Earning = {
   created_at: string;
 };
 
+export type BountyProposal = {
+  id: string;
+  family_id: string;
+  member_id: string;
+  title: string;
+  emoji: string;
+  cents: number;
+  note: string | null;
+  status: "pending" | "accepted" | "rejected";
+  created_at: string;
+  reviewed_at: string | null;
+};
+
 export type Meal = {
   id: string;
   family_id: string;
