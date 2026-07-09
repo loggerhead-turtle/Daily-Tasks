@@ -5,7 +5,7 @@ create table if not exists bounty_proposals (
   family_id uuid not null references families (id) on delete cascade,
   member_id uuid not null references members (id) on delete cascade,
   title text not null,
-  emoji text not null default '💪',
+  emoji text,
   cents int not null default 0,
   note text,
   status text not null default 'pending',
