@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { BoardState } from "@/lib/types";
 import { boardFetch } from "./useBoard";
 import { useDragScroll } from "./useDragScroll";
+import { OnScreenKeyboard } from "./OnScreenKeyboard";
 import { BackButton, BigAvatar, RewardTag } from "./bits";
 
 // Full-screen bounty board: chores anyone can claim. A kid taps a bounty to see
@@ -40,6 +41,24 @@ export function BountyView({
   const [propTitle, setPropTitle] = useState("");
   const [propDollars, setPropDollars] = useState("");
   const [propBusy, setPropBusy] = useState(false);
+  // Which field the on-screen keyboard is typing into (no OS keyboard on the Pi).
+  const [activeField, setActiveField] = useState<"title" | "price" | null>(null);
+
+  function typeKey(ch: string) {
+    if (activeField === "title") setPropTitle((v) => (v + ch).slice(0, 60));
+    else if (activeField === "price") setPropDollars((v) => (v + ch).replace(/[^0-9.]/g, "").slice(0, 8));
+  }
+  function backspace() {
+    if (activeField === "title") setPropTitle((v) => v.slice(0, -1));
+    else if (activeField === "price") setPropDollars((v) => v.slice(0, -1));
+  }
+
+  function closeForm() {
+    setProposing(false);
+    setActiveField(null);
+    setPropTitle("");
+    setPropDollars("");
+  }
 
   async function propose() {
     if (!selectedKid || !propTitle.trim()) return;
@@ -50,9 +69,7 @@ export function BountyView({
       body: JSON.stringify({ memberId: selectedKid.id, title: propTitle.trim(), cents }),
     });
     setPropBusy(false);
-    setProposing(false);
-    setPropTitle("");
-    setPropDollars("");
+    closeForm();
     setToast(
       res.ok ? `Sent to a parent to approve, ${selectedKid.name}! 🙌` : "Couldn't send it — try again."
     );
@@ -100,12 +117,16 @@ export function BountyView({
         </span>
         <button
           onClick={() => {
+            if (proposing) {
+              closeForm();
+              return;
+            }
             if (!selectedKid) {
               setToast("Tap your face up top first, then suggest a bounty!");
               setTimeout(() => setToast(null), 3500);
               return;
             }
-            setProposing((p) => !p);
+            setProposing(true);
           }}
           className="rounded-full bg-emerald-500 px-5 py-3 font-display text-xl font-bold text-white shadow transition active:scale-95"
         >
@@ -123,25 +144,24 @@ export function BountyView({
             {selectedKid.name}, what job should we add?
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <input
-              autoFocus
-              className="min-w-[16rem] flex-1 rounded-2xl border-2 border-slate-200 px-4 py-3 font-display text-xl font-bold text-slate-800 outline-none focus:border-violet-400"
-              placeholder="e.g. Wash the car"
-              value={propTitle}
-              onChange={(e) => setPropTitle(e.target.value)}
-            />
-            <div className="flex items-center gap-2">
-              <span className="font-display text-xl font-bold text-slate-500">$</span>
-              <input
-                className="w-28 rounded-2xl border-2 border-slate-200 px-4 py-3 font-display text-xl font-bold text-slate-800 outline-none focus:border-violet-400"
-                type="number"
-                min={0}
-                step="0.25"
-                placeholder="price"
-                value={propDollars}
-                onChange={(e) => setPropDollars(e.target.value)}
-              />
-            </div>
+            {/* Tap a box to type with the on-screen keyboard below. */}
+            <button
+              onClick={() => setActiveField("title")}
+              className={`min-w-[16rem] flex-1 rounded-2xl border-2 px-4 py-3 text-left font-display text-xl font-bold shadow-sm ${
+                activeField === "title" ? "border-violet-500 bg-white" : "border-slate-200 bg-white/80"
+              }`}
+            >
+              {propTitle || <span className="text-slate-400">e.g. Wash the car</span>}
+            </button>
+            <button
+              onClick={() => setActiveField("price")}
+              className={`flex items-center gap-1 rounded-2xl border-2 px-4 py-3 font-display text-xl font-bold shadow-sm ${
+                activeField === "price" ? "border-violet-500 bg-white" : "border-slate-200 bg-white/80"
+              }`}
+            >
+              <span className="text-slate-500">$</span>
+              {propDollars || <span className="text-slate-400">price</span>}
+            </button>
             <button
               onClick={propose}
               disabled={propBusy || !propTitle.trim()}
@@ -149,10 +169,26 @@ export function BountyView({
             >
               {propBusy ? "Sending…" : "Ask a parent"}
             </button>
+            <button
+              onClick={closeForm}
+              className="rounded-2xl bg-white px-5 py-3 font-display text-xl font-bold text-slate-500 shadow transition active:scale-95"
+            >
+              Cancel
+            </button>
           </div>
           <p className="mt-2 text-sm font-bold text-slate-400">
             A parent will set the price and approve it before it shows up here.
           </p>
+          {activeField && (
+            <div className="mt-3">
+              <OnScreenKeyboard
+                mode={activeField === "price" ? "number" : "text"}
+                onKey={typeKey}
+                onBackspace={backspace}
+                onDone={() => setActiveField(null)}
+              />
+            </div>
+          )}
         </motion.div>
       )}
 
