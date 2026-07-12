@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { Clock } from "./bits";
+import starryNight from "./starry-night.jpg";
 
-// Van Gogh's "The Starry Night" (public domain). Shown from Wikimedia on the
-// Pi (its host is allowlisted by the kiosk setup). If it can't load, the SVG
-// scene below stands in so the board still shows a starry night.
-const STARRY_NIGHT_URL =
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1920px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg";
+// Van Gogh's "The Starry Night" (public domain), bundled with the app so it's
+// served from /_next (already allowlisted by the kiosk) with no external
+// dependency. The SVG scene below stands in if the image ever fails to load.
 
 // The stars of the painting, roughly placed for the fallback scene.
 const STARS = [
@@ -106,7 +105,7 @@ export function Screensaver() {
       {imgOk && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={STARRY_NIGHT_URL}
+          src={starryNight.src}
           alt="Van Gogh — The Starry Night"
           draggable={false}
           onError={() => setImgOk(false)}

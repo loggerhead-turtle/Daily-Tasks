@@ -25,9 +25,10 @@ export function BountyView({
 }) {
   const kids = state.members.filter((m) => m.role === "child");
   const memberById = new Map(state.members.map((m) => [m.id, m]));
+  // Only unclaimed bounties belong here. Once a kid claims one it becomes their
+  // job (it moves to their Jobs column) and disappears from the bounty board.
   const bounties = state.chores.filter((c) => c.chore?.assign_type === "grab");
   const available = bounties.filter((c) => c.member_id === null && c.status === "todo");
-  const claimed = bounties.filter((c) => !(c.member_id === null && c.status === "todo"));
   const selectedKid = kids.find((k) => k.id === selected) ?? null;
 
   const [openId, setOpenId] = useState<string | null>(null);
@@ -206,7 +207,7 @@ export function BountyView({
       </AnimatePresence>
 
       <div className="min-h-0 flex-1 space-y-3 board-scroll" {...drag}>
-        {available.length === 0 && claimed.length === 0 && (
+        {available.length === 0 && (
           <p className="mt-16 text-center font-display text-3xl font-bold text-slate-400">
             No bounties right now — check back later! 🎈
           </p>
@@ -274,28 +275,6 @@ export function BountyView({
           );
         })}
 
-        {claimed.map((ci) => {
-          const c = ci.chore!;
-          const kid = ci.member_id ? memberById.get(ci.member_id) : null;
-          return (
-            <div
-              key={ci.id}
-              className="flex items-center gap-4 rounded-3xl bg-white/60 p-4 opacity-80 shadow-sm"
-            >
-              <span className="text-4xl">{c.emoji}</span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-xl font-bold text-slate-500">{c.title}</p>
-                <p className="text-sm">
-                  <RewardTag points={c.points} cents={c.cents} />
-                </p>
-              </div>
-              {kid && <BigAvatar member={kid} size={40} />}
-              <span className="rounded-full bg-slate-200 px-3 py-1 text-sm font-bold text-slate-600">
-                {ci.status === "approved" ? "✅ Done" : "🕐 Waiting for 👍"}
-              </span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
