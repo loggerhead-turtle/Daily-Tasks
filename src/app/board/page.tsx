@@ -150,7 +150,7 @@ export default function BoardPage() {
         </div>
       )}
 
-      {asleep && <Screensaver photos={state?.photos ?? []} />}
+      {asleep && <Screensaver />}
     </main>
   );
 }

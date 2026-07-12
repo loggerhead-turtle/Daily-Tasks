@@ -25,6 +25,15 @@
   scrollbar-width: none;
 }
 
+/* Twinkling stars for the Starry Night screensaver fallback scene. */
+@keyframes sn-twinkle {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.sn-twinkle {
+  animation: sn-twinkle 4s ease-in-out infinite;
+}
+
 /* A visible, chunky, touch-friendly scrollbar for the board's cards so it's
    obvious a card scrolls (and easy to drag) on the kitchen touchscreen. */
 .board-scroll {
