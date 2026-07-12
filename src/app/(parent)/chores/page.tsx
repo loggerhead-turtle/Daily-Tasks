@@ -87,17 +87,12 @@ export default function ChoresPage() {
   }, [family]);
 
   const loadProposals = useCallback(async () => {
-    if (!family) return;
-    const { data } = await createClient()
-      .from("bounty_proposals")
-      .select("*")
-      .eq("family_id", family.id)
-      .eq("status", "pending")
-      .order("created_at");
-    const list = (data as BountyProposal[]) ?? [];
+    const res = await fetch("/api/parent/bounty-proposals", { cache: "no-store" });
+    if (!res.ok) return;
+    const list = ((await res.json()).proposals as BountyProposal[]) ?? [];
     setProposals(list);
     setPropPrice(Object.fromEntries(list.map((p) => [p.id, (p.cents / 100).toFixed(2)])));
-  }, [family]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -105,47 +100,23 @@ export default function ChoresPage() {
   }, [load, loadProposals]);
 
   async function acceptProposal(p: BountyProposal) {
-    if (!family) return;
     const cents = Math.max(0, Math.round(parseFloat(propPrice[p.id] || "0") * 100)) || 0;
-    const supabase = createClient();
-    const { data: created, error } = await supabase
-      .from("chores")
-      .insert({
-        family_id: family.id,
-        title: p.title,
-        emoji: p.emoji || "💪",
-        points: 0,
-        cents,
-        assign_type: "grab",
-        member_id: null,
-        rotation_member_ids: [],
-        recurrence: "once",
-        days_of_week: [],
-        once_date: new Date().toISOString().slice(0, 10),
-      })
-      .select("id")
-      .single();
-    if (error) return setError(error.message);
-    await supabase
-      .from("bounty_proposals")
-      .update({ status: "accepted", reviewed_at: new Date().toISOString() })
-      .eq("id", p.id);
-    if (created?.id) {
-      fetch("/api/notify/chore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ choreId: created.id }),
-      }).catch(() => {});
-    }
+    const res = await fetch("/api/parent/bounty-proposals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: p.id, action: "accept", cents }),
+    });
+    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Couldn't accept it");
     loadProposals();
     load();
   }
 
   async function declineProposal(p: BountyProposal) {
-    await createClient()
-      .from("bounty_proposals")
-      .update({ status: "rejected", reviewed_at: new Date().toISOString() })
-      .eq("id", p.id);
+    await fetch("/api/parent/bounty-proposals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: p.id, action: "decline" }),
+    });
     loadProposals();
   }
 
