@@ -59,7 +59,6 @@ echo "==> Locking Chromium to the board (URL allowlist policy)"
 #   /_next        the app's own JS/CSS/fonts (blank screen without this)
 #   /favicon.ico  tab icon
 #   <supabase>    avatars + screensaver photos
-#   upload.wikimedia.org  the Starry Night screensaver painting (public domain)
 # The parent-only pages (/, /settings, /login, …) are NOT allowlisted, so a
 # kid cannot reach the management app from the board — and the rest of the
 # internet stays blocked too.
@@ -71,7 +70,7 @@ mkdir -p /etc/chromium/policies/managed /etc/chromium-browser/policies/managed
 cat > /etc/chromium/policies/managed/family-board-kiosk.json <<POLICY
 {
   "URLBlocklist": ["*"],
-  "URLAllowlist": ["${BOARD_URL}/board", "${BOARD_URL}/api", "${BOARD_URL}/_next", "${BOARD_URL}/favicon.ico", "upload.wikimedia.org"${SUPABASE_ALLOW}],
+  "URLAllowlist": ["${BOARD_URL}/board", "${BOARD_URL}/api", "${BOARD_URL}/_next", "${BOARD_URL}/favicon.ico"${SUPABASE_ALLOW}],
   "IncognitoModeAvailability": 1,
   "BrowserAddPersonEnabled": false,
   "BookmarkBarEnabled": false,
