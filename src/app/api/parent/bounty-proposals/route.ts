@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { authParent } from "@/lib/parentAuth";
 import { sendToSubs, type StoredSub } from "@/lib/push";
-import type { BountyProposal, Member } from "@/lib/types";
+import type { BountyProposal } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,14 +21,30 @@ export async function GET() {
   return NextResponse.json({ proposals: (data as BountyProposal[] | null) ?? [] });
 }
 
-// Accept (posts a bounty at the given price) or decline a request.
+async function notifyMember(
+  admin: SupabaseClient,
+  memberId: string,
+  payload: { title: string; body: string; url?: string }
+) {
+  const { data: subs } = await admin
+    .from("push_subscriptions")
+    .select("id, endpoint, p256dh, auth")
+    .eq("member_id", memberId);
+  await sendToSubs(admin, (subs as StoredSub[] | null) ?? [], payload);
+}
+
+// Review a bounty request:
+//  - decline: reject it
+//  - approve: post it as a one-time chore ASSIGNED to the child who proposed
+//    it (they complete it, and the money lands when you approve the completion)
+//  - approve_complete: same, but immediately mark it done and pay the child now
 export async function POST(req: NextRequest) {
   const ctx = await authParent();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id, action, cents } = (await req.json()) as {
     id?: string;
-    action?: "accept" | "decline";
+    action?: "decline" | "approve" | "approve_complete";
     cents?: number;
   };
   if (!id || !action) return NextResponse.json({ error: "Missing id/action" }, { status: 400 });
@@ -49,8 +66,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // Accept → create a one-time claimable bounty at the parent-set price.
   const price = Math.max(0, Math.round(Number(cents) || 0));
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Create the chore, assigned to the child who proposed it.
   const { data: created } = await ctx.admin
     .from("chores")
     .insert({
@@ -59,38 +78,69 @@ export async function POST(req: NextRequest) {
       emoji: p.emoji || "💪",
       points: 0,
       cents: price,
-      assign_type: "grab",
-      member_id: null,
+      assign_type: "fixed",
+      member_id: p.member_id,
       rotation_member_ids: [],
       recurrence: "once",
       days_of_week: [],
-      once_date: new Date().toISOString().slice(0, 10),
+      once_date: today,
     })
     .select("id")
     .single();
+  if (!created) return NextResponse.json({ error: "Couldn't create the chore" }, { status: 500 });
 
-  await ctx.admin
-    .from("bounty_proposals")
-    .update({ status: "accepted", reviewed_at: new Date().toISOString() })
-    .eq("id", id);
-
-  // Notify every kid a new bounty is up for grabs.
-  const { data: members } = await ctx.admin
-    .from("members")
-    .select("id, role")
-    .eq("family_id", ctx.familyId);
-  const kidIds = (members as Pick<Member, "id" | "role">[] | null)?.filter((m) => m.role === "child").map((m) => m.id) ?? [];
-  if (kidIds.length) {
-    const { data: subs } = await ctx.admin
-      .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
-      .in("member_id", kidIds);
-    await sendToSubs(ctx.admin, (subs as StoredSub[] | null) ?? [], {
-      title: "💰 New bounty!",
+  const now = new Date().toISOString();
+  if (action === "approve_complete") {
+    // Post it already done and pay the child immediately.
+    const { data: inst } = await ctx.admin
+      .from("chore_instances")
+      .insert({
+        family_id: ctx.familyId,
+        chore_id: created.id,
+        date: today,
+        member_id: p.member_id,
+        status: "approved",
+        completed_at: now,
+        reviewed_at: now,
+        points_awarded: 0,
+      })
+      .select("id")
+      .single();
+    if (price > 0) {
+      await ctx.admin.from("earnings").insert({
+        family_id: ctx.familyId,
+        member_id: p.member_id,
+        cents: price,
+        reason: p.title,
+        kind: "chore",
+        chore_instance_id: inst?.id ?? null,
+      });
+    }
+    await notifyMember(ctx.admin, p.member_id, {
+      title: "💵 You got paid!",
+      body: `${p.emoji || "💪"} ${p.title}${price > 0 ? ` — $${(price / 100).toFixed(2)}` : ""}`,
+      url: "/me",
+    });
+  } else {
+    // Send it as a job for the child to complete.
+    await ctx.admin.from("chore_instances").insert({
+      family_id: ctx.familyId,
+      chore_id: created.id,
+      date: today,
+      member_id: p.member_id,
+      status: "todo",
+    });
+    await notifyMember(ctx.admin, p.member_id, {
+      title: "✅ New job for you",
       body: `${p.emoji || "💪"} ${p.title}${price > 0 ? ` — $${(price / 100).toFixed(2)}` : ""}`,
       url: "/me",
     });
   }
 
-  return NextResponse.json({ ok: true, choreId: created?.id ?? null });
+  await ctx.admin
+    .from("bounty_proposals")
+    .update({ status: "accepted", reviewed_at: now })
+    .eq("id", id);
+
+  return NextResponse.json({ ok: true, choreId: created.id });
 }

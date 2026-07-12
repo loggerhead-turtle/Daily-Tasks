@@ -99,25 +99,19 @@ export default function ChoresPage() {
     loadProposals();
   }, [load, loadProposals]);
 
-  async function acceptProposal(p: BountyProposal) {
+  async function reviewProposal(
+    p: BountyProposal,
+    action: "approve" | "approve_complete" | "decline"
+  ) {
     const cents = Math.max(0, Math.round(parseFloat(propPrice[p.id] || "0") * 100)) || 0;
     const res = await fetch("/api/parent/bounty-proposals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: p.id, action: "accept", cents }),
+      body: JSON.stringify({ id: p.id, action, cents }),
     });
-    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Couldn't accept it");
+    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Couldn't do that");
     loadProposals();
     load();
-  }
-
-  async function declineProposal(p: BountyProposal) {
-    await fetch("/api/parent/bounty-proposals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: p.id, action: "decline" }),
-    });
-    loadProposals();
   }
 
   async function save() {
@@ -247,13 +241,21 @@ export default function ChoresPage() {
                   />
                   <button
                     className="btn !py-1.5 text-xs"
-                    onClick={() => acceptProposal(p)}
+                    onClick={() => reviewProposal(p, "approve")}
+                    title="Send it to the child as a job to complete"
                   >
-                    <Check size={14} /> Accept as bounty
+                    <Check size={14} /> Approve
+                  </button>
+                  <button
+                    className="btn !bg-emerald-600 !py-1.5 text-xs hover:!bg-emerald-700"
+                    onClick={() => reviewProposal(p, "approve_complete")}
+                    title="Mark it done and pay the child now"
+                  >
+                    <Check size={14} /> Approve &amp; pay now
                   </button>
                   <button
                     className="btn-secondary !py-1.5 text-xs"
-                    onClick={() => declineProposal(p)}
+                    onClick={() => reviewProposal(p, "decline")}
                   >
                     <X size={14} /> Decline
                   </button>
