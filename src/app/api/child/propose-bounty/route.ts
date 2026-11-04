@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authChild } from "@/lib/childAuth";
+import { notifyParents } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -30,5 +31,11 @@ export async function POST(req: NextRequest) {
     status: "pending",
   });
   if (error) return NextResponse.json({ error: "Couldn't send your request." }, { status: 500 });
+
+  await notifyParents(ctx.admin, ctx.familyId, {
+    title: "💡 New idea from " + ctx.member.name,
+    body: `${emoji?.trim() || "💪"} ${title.trim()}${price > 0 ? ` — $${(price / 100).toFixed(2)}` : ""}`,
+    url: "/chores",
+  });
   return NextResponse.json({ ok: true });
 }

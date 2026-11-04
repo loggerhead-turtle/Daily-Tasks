@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifyMember } from "./push";
 
 // Shared approve/reject logic for completed chores and reward redemptions.
 // Used by both the board's PIN-protected parent mode and the parent web app.
@@ -56,6 +57,23 @@ export async function applyReview(
         });
       }
     }
+
+    // Close the loop back to the child's phone.
+    if (instance.member_id) {
+      const reward = [
+        points > 0 ? `+${points} ⭐` : "",
+        cents > 0 ? `+$${(cents / 100).toFixed(2)}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      await notifyMember(
+        admin,
+        instance.member_id,
+        action === "approve"
+          ? { title: "✅ Approved!", body: `${label}${reward ? ` — ${reward}` : ""}`, url: "/me" }
+          : { title: "🔁 Please redo", body: `${label} — give it another go`, url: "/me" }
+      );
+    }
     return { ok: true };
   }
 
@@ -68,14 +86,24 @@ export async function applyReview(
     .single();
   if (!redemption) return { ok: false, error: "Not found", status: 404 };
 
+  const prize = `${redemption.reward?.emoji ?? "🎁"} ${redemption.reward?.title ?? "Reward"}`.trim();
   await admin.from("redemptions").update({ status, reviewed_at: now }).eq("id", id);
   if (action === "approve") {
     await admin.from("points_ledger").insert({
       family_id: familyId,
       member_id: redemption.member_id,
       delta: -redemption.cost,
-      reason: `${redemption.reward?.emoji ?? "🎁"} ${redemption.reward?.title ?? "Reward"}`.trim(),
+      reason: prize,
     });
+  }
+  if (redemption.member_id) {
+    await notifyMember(
+      admin,
+      redemption.member_id,
+      action === "approve"
+        ? { title: "🎁 Prize granted!", body: prize, url: "/me" }
+        : { title: "Not right now", body: `${prize} — maybe later`, url: "/me" }
+    );
   }
   return { ok: true };
 }

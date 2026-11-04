@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authChild } from "@/lib/childAuth";
+import { isUuid } from "@/lib/validate";
+import { notifyParents } from "@/lib/push";
 
 // A child taps "done" on their phone. Same rules as the board: fixed/rotation
 // chores go to pending review; an unclaimed grab chore is claimed by them.
 export async function POST(req: NextRequest) {
   const ctx = await authChild();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { admin, familyId, memberId } = ctx;
+  const { admin, familyId, memberId, member } = ctx;
 
   const { instanceId } = (await req.json()) as { instanceId?: string };
-  if (!instanceId) return NextResponse.json({ error: "Missing instanceId" }, { status: 400 });
+  if (!isUuid(instanceId)) {
+    return NextResponse.json({ error: "Missing/invalid instanceId" }, { status: 400 });
+  }
 
   const { data: instance } = await admin
     .from("chore_instances")
-    .select("*")
+    .select("*, chore:chores(title, emoji)")
     .eq("id", instanceId)
     .eq("family_id", familyId)
     .single();
@@ -41,5 +45,12 @@ export async function POST(req: NextRequest) {
   if (error || !updated) {
     return NextResponse.json({ error: "Someone beat you to it!" }, { status: 409 });
   }
+
+  const title = `${instance.chore?.emoji ?? ""} ${instance.chore?.title ?? "A chore"}`.trim();
+  await notifyParents(admin, familyId, {
+    title: "⏳ Needs your OK",
+    body: `${member.name} finished ${title}`,
+    url: "/",
+  });
   return NextResponse.json({ instance: updated });
 }

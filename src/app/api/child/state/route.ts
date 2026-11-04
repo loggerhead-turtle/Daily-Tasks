@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   const date = safeDate(req.nextUrl.searchParams.get("date"));
   await ensureInstancesForDate(admin, familyId, date);
 
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
   const [
     { data: instances },
     { data: earnings },
@@ -23,6 +25,7 @@ export async function GET(req: NextRequest) {
     { data: announcements },
     { data: redemptions },
     { data: proposals },
+    { data: reviewed },
   ] = await Promise.all([
     admin
       .from("chore_instances")
@@ -55,6 +58,15 @@ export async function GET(req: NextRequest) {
       .select("*")
       .eq("member_id", memberId)
       .order("created_at", { ascending: false })
+      .limit(10),
+    admin
+      .from("chore_instances")
+      .select("id, status, reviewed_at, points_awarded, chore:chores(title, emoji, cents)")
+      .eq("family_id", familyId)
+      .eq("member_id", memberId)
+      .in("status", ["approved", "rejected"])
+      .gte("reviewed_at", threeDaysAgo)
+      .order("reviewed_at", { ascending: false })
       .limit(10),
   ]);
 
@@ -99,6 +111,37 @@ export async function GET(req: NextRequest) {
         icon: "🙈",
         text: `Not right now: ${r.reward?.title ?? "reward"}`,
         when: r.reviewed_at ?? r.created_at,
+      });
+    }
+  }
+  type Reviewed = {
+    id: string;
+    status: string;
+    reviewed_at: string | null;
+    points_awarded: number | null;
+    chore?: { title?: string; emoji?: string; cents?: number } | null;
+  };
+  for (const c of (reviewed as Reviewed[] | null) ?? []) {
+    const label = `${c.chore?.emoji ?? ""} ${c.chore?.title ?? "Chore"}`.trim();
+    if (c.status === "approved") {
+      const bits = [
+        (c.points_awarded ?? 0) > 0 ? `+${c.points_awarded} ⭐` : "",
+        (c.chore?.cents ?? 0) > 0 ? `+${dollars(c.chore!.cents!)}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      notifications.push({
+        id: `rev-${c.id}`,
+        icon: "✅",
+        text: `Approved: ${label}${bits ? ` (${bits})` : ""}`,
+        when: c.reviewed_at ?? "",
+      });
+    } else {
+      notifications.push({
+        id: `rev-${c.id}`,
+        icon: "🔁",
+        text: `Try again: ${label}`,
+        when: c.reviewed_at ?? "",
       });
     }
   }

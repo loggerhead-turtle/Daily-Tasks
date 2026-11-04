@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authBoard } from "@/lib/boardAuth";
 import { isUuid } from "@/lib/validate";
+import { notifyParents } from "@/lib/push";
 
 // A child taps "done". Fixed/rotation chores go to pending review; an
 // unclaimed grab chore is claimed by the tapping child at the same time.
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   // The claimer must be a child in THIS board's family — never an arbitrary id.
   const { data: member } = await admin
     .from("members")
-    .select("id")
+    .select("id, name")
     .eq("id", memberId)
     .eq("family_id", familyId)
     .eq("role", "child")
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   const { data: instance } = await admin
     .from("chore_instances")
-    .select("*")
+    .select("*, chore:chores(title, emoji)")
     .eq("id", instanceId)
     .eq("family_id", familyId)
     .single();
@@ -58,5 +59,12 @@ export async function POST(req: NextRequest) {
   if (error || !updated) {
     return NextResponse.json({ error: "Someone beat you to it!" }, { status: 409 });
   }
+
+  const title = `${instance.chore?.emoji ?? ""} ${instance.chore?.title ?? "A chore"}`.trim();
+  await notifyParents(admin, familyId, {
+    title: "⏳ Needs your OK",
+    body: `${member.name} finished ${title}`,
+    url: "/",
+  });
   return NextResponse.json({ instance: updated });
 }
