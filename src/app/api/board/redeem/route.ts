@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authBoard } from "@/lib/boardAuth";
 import { isUuid } from "@/lib/validate";
+import { notifyParents } from "@/lib/push";
 
 // A child asks to redeem a reward. Points are only deducted when a parent
 // approves; pending redemptions are counted against the spendable balance.
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   }
   const { data: redeemer } = await admin
     .from("members")
-    .select("id")
+    .select("id, name")
     .eq("id", memberId)
     .eq("family_id", familyId)
     .maybeSingle();
@@ -52,5 +53,11 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
   if (error) return NextResponse.json({ error: "Failed" }, { status: 500 });
+
+  await notifyParents(admin, familyId, {
+    title: "🎁 Prize request",
+    body: `${redeemer.name} wants ${reward.emoji ?? "🎁"} ${reward.title}`,
+    url: "/",
+  });
   return NextResponse.json({ redemption });
 }

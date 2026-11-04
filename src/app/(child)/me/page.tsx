@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
+import confetti from "canvas-confetti";
 import { Bell, BellOff, Camera, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { BountyProposal, CalendarEvent, ChoreInstance, Earning } from "@/lib/types";
@@ -173,14 +174,38 @@ export default function ChildPage() {
     loadEvents();
   }, [load, loadEvents]);
 
+  // Keep the page live so a parent's approval shows up without a manual reload.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const id = setInterval(load, 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(id);
+    };
+  }, [load]);
+
+  const [confirming, setConfirming] = useState<string | null>(null);
+
   async function complete(instanceId: string) {
     setBusy(instanceId);
-    await fetch("/api/child/chore/complete", {
+    const res = await fetch("/api/child/chore/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ instanceId }),
     });
     setBusy(null);
+    setConfirming(null);
+    if (res.ok) {
+      confetti({
+        particleCount: 90,
+        spread: 70,
+        origin: { y: 0.7 },
+        colors: ["#8b5cf6", "#22c55e", "#fbbf24", "#f472b6"],
+      });
+    }
     await load();
   }
 
@@ -212,9 +237,13 @@ export default function ChildPage() {
   }
 
   const { member } = state;
-  const todo = state.chores.filter((c) => c.status === "todo" || c.status === "rejected");
+  const todo = state.chores.filter((c) => c.status === "todo");
+  const redo = state.chores.filter((c) => c.status === "rejected");
   const waiting = state.chores.filter((c) => c.status === "pending");
   const done = state.chores.filter((c) => c.status === "approved");
+  const totalToday = todo.length + redo.length + waiting.length + done.length;
+  const doneToday = done.length;
+  const progressPct = totalToday > 0 ? Math.round((doneToday / totalToday) * 100) : 0;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-violet-100 via-sky-50 to-amber-100 pb-10">
@@ -286,41 +315,35 @@ export default function ChildPage() {
           className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-base font-bold text-white shadow transition active:scale-95"
         />
 
-        {/* 1 · Notifications */}
-        <h2 className="mb-2 font-display text-lg font-bold text-slate-700">🔔 Notifications</h2>
-        <div className="mb-6 space-y-1.5">
-          {state.notifications.length === 0 && (
-            <p className="rounded-2xl bg-white/60 px-4 py-3 text-center font-bold text-slate-400">
-              Nothing new right now 😌
-            </p>
+        {/* 1 · Today's jobs (the reason the page exists — kept at the top) */}
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-display text-lg font-bold text-slate-700">✅ Today&apos;s jobs</h2>
+          {totalToday > 0 && (
+            <span className="font-display text-sm font-bold text-slate-500">
+              {doneToday} of {totalToday} done
+            </span>
           )}
-          {state.notifications.map((n) => (
-            <div
-              key={n.id}
-              className="flex items-start gap-2 rounded-2xl bg-white/75 px-4 py-2.5 shadow-sm"
-            >
-              <span className="text-xl">{n.icon}</span>
-              <span className="font-display text-sm font-bold leading-snug text-slate-700">
-                {n.text}
-              </span>
-            </div>
-          ))}
         </div>
-
-        {/* 2 · Today's chores */}
-        <h2 className="mb-2 font-display text-lg font-bold text-slate-700">✅ Today&apos;s jobs</h2>
+        {totalToday > 0 && (
+          <div className="mb-3 h-2.5 w-full overflow-hidden rounded-full bg-white/70">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        )}
         <div className="mb-6 space-y-2">
-          {todo.length === 0 && waiting.length === 0 && done.length === 0 && (
-            <p className="rounded-2xl bg-white/60 px-4 py-6 text-center font-display font-bold text-slate-400">
+          {totalToday === 0 && (
+            <p className="rounded-2xl bg-white/60 px-4 py-6 text-center font-display font-bold text-slate-600">
               No jobs today — enjoy! 🎈
             </p>
           )}
-          {todo.map((ci) => (
+          {redo.map((ci) => (
             <button
               key={ci.id}
               disabled={busy === ci.id}
-              onClick={() => complete(ci.id)}
-              className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow transition active:scale-[0.98] disabled:opacity-50"
+              onClick={() => (confirming === ci.id ? complete(ci.id) : setConfirming(ci.id))}
+              className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow ring-2 ring-amber-400 transition active:scale-[0.98] disabled:opacity-50"
             >
               <span className="text-3xl">{ci.chore?.emoji}</span>
               <span className="min-w-0 flex-1">
@@ -334,8 +357,38 @@ export default function ChildPage() {
                   )}
                 </span>
               </span>
-              <span className="rounded-full border-[3px] border-dashed border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-400">
-                Tap when done
+              <span className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white">
+                {confirming === ci.id ? "Done? Tap again ✓" : "🔁 Try again"}
+              </span>
+            </button>
+          ))}
+          {todo.map((ci) => (
+            <button
+              key={ci.id}
+              disabled={busy === ci.id}
+              onClick={() => (confirming === ci.id ? complete(ci.id) : setConfirming(ci.id))}
+              className={`flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow transition active:scale-[0.98] disabled:opacity-50 ${
+                confirming === ci.id ? "ring-2 ring-violet-500" : ""
+              }`}
+            >
+              <span className="text-3xl">{ci.chore?.emoji}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-display text-lg font-bold text-slate-800">
+                  {ci.chore?.title}
+                </span>
+                <span className="text-xs font-bold text-amber-600">
+                  ⭐ +{ci.chore?.points}
+                  {ci.chore && ci.chore.cents > 0 && (
+                    <span className="ml-2 text-emerald-600">{money(ci.chore.cents)}</span>
+                  )}
+                </span>
+              </span>
+              <span
+                className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold text-white ${
+                  confirming === ci.id ? "bg-emerald-500" : "bg-violet-600"
+                }`}
+              >
+                {confirming === ci.id ? "Yes, done! ✓" : "Tap when done"}
               </span>
             </button>
           ))}
@@ -366,6 +419,26 @@ export default function ChildPage() {
             </div>
           ))}
         </div>
+
+        {/* 2 · Notifications (below jobs; hidden when there's nothing new) */}
+        {state.notifications.length > 0 && (
+          <>
+            <h2 className="mb-2 font-display text-lg font-bold text-slate-700">🔔 News</h2>
+            <div className="mb-6 space-y-1.5">
+              {state.notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className="flex items-start gap-2 rounded-2xl bg-white/75 px-4 py-2.5 shadow-sm"
+                >
+                  <span className="text-xl">{n.icon}</span>
+                  <span className="font-display text-sm font-bold leading-snug text-slate-700">
+                    {n.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Propose a bounty */}
         <div className="mb-6">
@@ -471,11 +544,11 @@ export default function ChildPage() {
               <p className="font-display text-2xl font-bold">{money(state.balanceCents)}</p>
             </div>
             <div className="rounded-2xl bg-white/70 p-3 shadow">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Earned</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Earned</p>
               <p className="font-display text-2xl font-bold text-slate-700">{money(state.earnedCents)}</p>
             </div>
             <div className="rounded-2xl bg-white/70 p-3 shadow">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Paid out</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Paid out</p>
               <p className="font-display text-2xl font-bold text-slate-700">{money(state.paidCents)}</p>
             </div>
           </div>
@@ -507,7 +580,7 @@ export default function ChildPage() {
         <h2 className="mb-2 font-display text-lg font-bold text-slate-700">📅 What&apos;s coming up</h2>
         <div className="space-y-1.5">
           {events.length === 0 && (
-            <p className="rounded-2xl bg-white/60 px-4 py-3 text-center font-bold text-slate-400">
+            <p className="rounded-2xl bg-white/60 px-4 py-3 text-center font-bold text-slate-600">
               Nothing on the calendar 🎈
             </p>
           )}

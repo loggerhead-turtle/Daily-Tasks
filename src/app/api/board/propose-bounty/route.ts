@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authBoard } from "@/lib/boardAuth";
+import { notifyParents } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   // The member must be a child in this board's family.
   const { data: member } = await admin
     .from("members")
-    .select("id, role")
+    .select("id, role, name")
     .eq("id", memberId)
     .eq("family_id", familyId)
     .single();
@@ -41,5 +42,12 @@ export async function POST(req: NextRequest) {
     status: "pending",
   });
   if (error) return NextResponse.json({ error: "Couldn't send the request." }, { status: 500 });
+
+  const price = Math.max(0, Math.round(Number(cents) || 0));
+  await notifyParents(admin, familyId, {
+    title: "💡 New idea from " + member.name,
+    body: `💪 ${title.trim()}${price > 0 ? ` — $${(price / 100).toFixed(2)}` : ""}`,
+    url: "/chores",
+  });
   return NextResponse.json({ ok: true });
 }
