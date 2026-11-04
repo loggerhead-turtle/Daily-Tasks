@@ -69,12 +69,18 @@ export async function POST(req: NextRequest) {
     }
     const { data: prof } = await ctx.admin
       .from("profiles")
-      .select("id, family_id")
+      .select("id, family_id, role, member_id")
       .eq("id", user.id)
       .maybeSingle();
-    if (prof?.family_id) {
+    // Only ever adopt a genuinely orphaned PARENT signup (one that never got a
+    // family). Refuse anything already attached to a family, and — critically —
+    // any child account (role 'child' / linked to a member, whose family_id is
+    // NULL by design): adopting one would hand this parent control of someone
+    // else's child login. Without this check a known/guessed child email or
+    // username would be a cross-family account takeover.
+    if (prof && (prof.family_id || prof.role === "child" || prof.member_id)) {
       return NextResponse.json(
-        { error: "That email is already an active account — ask them to just sign in." },
+        { error: "That email already belongs to an account and can't be added this way." },
         { status: 400 }
       );
     }

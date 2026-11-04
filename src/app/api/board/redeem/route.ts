@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authBoard } from "@/lib/boardAuth";
+import { isUuid } from "@/lib/validate";
 
 // A child asks to redeem a reward. Points are only deducted when a parent
 // approves; pending redemptions are counted against the spendable balance.
@@ -12,9 +13,16 @@ export async function POST(req: NextRequest) {
     rewardId?: string;
     memberId?: string;
   };
-  if (!rewardId || !memberId) {
-    return NextResponse.json({ error: "Missing rewardId/memberId" }, { status: 400 });
+  if (!isUuid(rewardId) || !isUuid(memberId)) {
+    return NextResponse.json({ error: "Missing/invalid rewardId or memberId" }, { status: 400 });
   }
+  const { data: redeemer } = await admin
+    .from("members")
+    .select("id")
+    .eq("id", memberId)
+    .eq("family_id", familyId)
+    .maybeSingle();
+  if (!redeemer) return NextResponse.json({ error: "Unknown member" }, { status: 400 });
 
   const [{ data: reward }, { data: ledger }, { data: pending }] = await Promise.all([
     admin.from("rewards").select("*").eq("id", rewardId).eq("family_id", familyId).single(),
