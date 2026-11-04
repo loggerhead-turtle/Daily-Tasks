@@ -14,6 +14,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import InstallApp from "@/components/pwa/InstallApp";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -63,6 +64,10 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
               </Link>
             );
           })}
+          <InstallApp
+            label="Install app"
+            className="flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-violet-600 transition hover:bg-violet-50 md:mt-auto"
+          />
           <button
             onClick={signOut}
             className="flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 md:mt-auto"

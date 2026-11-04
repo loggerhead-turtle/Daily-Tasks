@@ -6,6 +6,7 @@ import { format, parseISO } from "date-fns";
 import { Bell, BellOff, Camera, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { BountyProposal, CalendarEvent, ChoreInstance, Earning } from "@/lib/types";
+import InstallApp from "@/components/pwa/InstallApp";
 
 type Note = { id: string; icon: string; text: string; when: string };
 
@@ -279,6 +280,11 @@ export default function ChildPage() {
             <LogOut size={18} />
           </button>
         </header>
+
+        <InstallApp
+          label="Add My Jobs to your phone"
+          className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-base font-bold text-white shadow transition active:scale-95"
+        />
 
         {/* 1 · Notifications */}
         <h2 className="mb-2 font-display text-lg font-bold text-slate-700">🔔 Notifications</h2>

@@ -1,0 +1,16 @@
+{
+  "id": "/me",
+  "name": "My Jobs",
+  "short_name": "My Jobs",
+  "description": "See your jobs, bounties and money.",
+  "start_url": "/me?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ede9fe",
+  "theme_color": "#22c55e",
+  "icons": [
+    { "src": "/icon-kid.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-kid.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
