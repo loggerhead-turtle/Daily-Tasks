@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
 
 // After signup, a parent either creates a new family or joins an existing
 // one with its invite code. Runs with the service role so it can create the
@@ -11,6 +12,19 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  // Throttle invite-code guessing (joining is permanent full-parent access).
+  const limit = rateLimit(`onboard:${clientIp(req)}:${user.id}`, {
+    max: 12,
+    windowMs: 10 * 60 * 1000,
+    blockMs: 15 * 60 * 1000,
+  });
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Too many attempts — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
 
   const { familyName, inviteCode, displayName } = (await req.json()) as {
     familyName?: string;

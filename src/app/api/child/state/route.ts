@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authChild } from "@/lib/childAuth";
 import { ensureInstancesForDate } from "@/lib/choreEngine";
+import { safeDate } from "@/lib/validate";
 import type { ChoreInstance, Earning } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { admin, familyId, memberId, member } = ctx;
 
-  const date = req.nextUrl.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const date = safeDate(req.nextUrl.searchParams.get("date"));
   await ensureInstancesForDate(admin, familyId, date);
 
   const [

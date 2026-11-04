@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authBoard } from "@/lib/boardAuth";
+import { isUuid } from "@/lib/validate";
 
 // A child taps "done". Fixed/rotation chores go to pending review; an
 // unclaimed grab chore is claimed by the tapping child at the same time.
@@ -12,9 +13,19 @@ export async function POST(req: NextRequest) {
     instanceId?: string;
     memberId?: string;
   };
-  if (!instanceId || !memberId) {
-    return NextResponse.json({ error: "Missing instanceId/memberId" }, { status: 400 });
+  if (!isUuid(instanceId) || !isUuid(memberId)) {
+    return NextResponse.json({ error: "Missing/invalid instanceId or memberId" }, { status: 400 });
   }
+
+  // The claimer must be a child in THIS board's family — never an arbitrary id.
+  const { data: member } = await admin
+    .from("members")
+    .select("id")
+    .eq("id", memberId)
+    .eq("family_id", familyId)
+    .eq("role", "child")
+    .maybeSingle();
+  if (!member) return NextResponse.json({ error: "Unknown child" }, { status: 400 });
 
   const { data: instance } = await admin
     .from("chore_instances")
